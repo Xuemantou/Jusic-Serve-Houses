@@ -16,6 +16,13 @@
 
     <properties>
         <java.version>1.8</java.version>
+        <!--
+          Spring Boot 2.3.1 默认管理 Lombok 1.18.12，该版本在 JDK 17+ 下会因 jdk.compiler
+          模块不再开放 com.sun.tools.javac.processing 而抛 IllegalAccessError，
+          导致 @Data/@Slf4j 等生成的 getter/setter/log 全部"找不到符号"。
+          这里升级到 1.18.48，以便在较新的 JDK（JDK 21/26 等）上直接构建。
+        -->
+        <lombok.version>1.18.48</lombok.version>
     </properties>
 
     <dependencies>
@@ -102,6 +109,25 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!--
+              JDK 23 起 javac 默认不再从 classpath 自动发现注解处理器（隐式注解处理被关闭），
+              而 Spring Boot 2.3.1 管理的 maven-compiler-plugin 3.8.1 也没有 proc 参数，
+              因此必须显式声明 annotationProcessorPaths，否则 Lombok 会静默失效（不报错但不生成代码）。
+              显式声明后会以 -processorpath 传给 javac，不受隐式发现被关闭的影响。
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
             </plugin>
         </plugins>
     </build>

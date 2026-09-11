@@ -355,9 +355,14 @@ public class MusicServiceImpl implements MusicService {
         Music playing = musicPlayingRepository.getPlaying(houseId);
         try{
             Collections.reverse(pickMusicList);
-            result.add(playing);
+            // 房间没有正在播放的歌曲时 getPlaying 返回 null。
+            // 直接 add 会把 null 放进列表推给前端，前端 v-for 渲染 row.id 会抛 TypeError 导致整页白屏；
+            // 而且下面的 forEach 会先在 null 上抛 NPE，导致后续歌曲的歌词都没被清空（推送体积暴涨）。
+            if (playing != null) {
+                result.add(playing);
+            }
             result.addAll(pickMusicList);
-
+            result.removeIf(Objects::isNull);
 
             result.forEach(m -> {
                 // 由于歌词数据量太大了, 而且列表这种不需要关注歌词, 具体歌词放到推送音乐的时候再给提供
@@ -385,8 +390,13 @@ public class MusicServiceImpl implements MusicService {
         musicPickRepository.rightPushAll(houseId,pickMusicList.toArray());
         Music playing = musicPlayingRepository.getPlaying(houseId);
         Collections.reverse(pickMusicList);
-        result.add(playing);
+        // 同 getPickList：playing 可能为 null，不能直接入列表。
+        // 注意本方法没有 try-catch，一旦 forEach 撞上 null 抛出的 NPE 会让整个请求失败。
+        if (playing != null) {
+            result.add(playing);
+        }
         result.addAll(pickMusicList);
+        result.removeIf(Objects::isNull);
 
         result.forEach(m -> {
             // 由于歌词数据量太大了, 而且列表这种不需要关注歌词, 具体歌词放到推送音乐的时候再给提供

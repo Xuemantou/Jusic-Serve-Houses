@@ -1,1 +1,68 @@
-<!DOCTYPE html><html lang=en><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1"><link rel=icon href=favicon.ico><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700,400italic"><link href=https://cdn.bootcss.com/material-design-icons/3.0.1/iconfont/material-icons.min.css rel=stylesheet><title>一起听歌吧</title><link href=css/music.40418138.css rel=prefetch><link href=js/music.e6d7dc12.js rel=prefetch><link href=css/app.c96cdf2c.css rel=preload as=style><link href=css/chunk-vendors.1380d430.css rel=preload as=style><link href=js/app.e615c8b3.js rel=preload as=script><link href=js/chunk-vendors.7625ce53.js rel=preload as=script><link href=css/chunk-vendors.1380d430.css rel=stylesheet><link href=css/app.c96cdf2c.css rel=stylesheet></head><body><noscript><strong>We're sorry but jusic-ui doesn't work properly without JavaScript enabled. Please enable it to continue.</strong></noscript><div id=app></div><script src=js/chunk-vendors.7625ce53.js></script><script src=js/app.e615c8b3.js></script></body></html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>一起听歌吧</title>
+    <script>
+      // 启动错误可视化：把 JS 错误直接显示在页面上，避免"白屏无提示"
+      (function () {
+        window.__jusicErrors = []
+        function render(msg) {
+          window.__jusicErrors.push(msg)
+          document.title = '启动错误: ' + msg.slice(0, 80)
+          var box = document.getElementById('boot-error')
+          if (!box) {
+            box = document.createElement('pre')
+            box.id = 'boot-error'
+            box.style.cssText =
+              'position:fixed;inset:0;z-index:99999;margin:0;padding:16px;overflow:auto;' +
+              'background:#1e1e1e;color:#ff6b6b;font:12px/1.6 monospace;white-space:pre-wrap'
+            ;(document.body || document.documentElement).appendChild(box)
+          }
+          box.textContent = '启动失败（请把以下信息反馈给开发者）:\n\n' + window.__jusicErrors.join('\n\n')
+        }
+        window.addEventListener(
+          'error',
+          function (e) {
+            // 资源加载错误：target 为具体元素（img/script/link 等）
+            if (e.target && e.target !== window && e.target.tagName) {
+              var tag = e.target.tagName
+              var src = e.target.src || e.target.href || ''
+              if (tag === 'SCRIPT' || tag === 'LINK') {
+                render('关键资源加载失败 <' + tag.toLowerCase() + '>: ' + src)
+              } else {
+                // 图片等非致命资源：仅记录，不覆盖页面
+                window.__jusicErrors.push('资源加载失败 <' + tag.toLowerCase() + '>: ' + src)
+                console.warn('[jusic] 资源加载失败:', tag, src)
+              }
+              return
+            }
+            // 真正的 JS 运行时错误
+            if (!e.message) return
+            render(
+              'JS 错误: ' +
+                e.message +
+                '\n  位置: ' +
+                (e.filename || '?') +
+                ':' +
+                (e.lineno || 0) +
+                ':' +
+                (e.colno || 0),
+            )
+          },
+          true,
+        )
+        window.addEventListener('unhandledrejection', function (e) {
+          var r = e.reason
+          render('未处理的 Promise 拒绝: ' + ((r && (r.stack || r.message)) || String(r)))
+        })
+      })()
+    </script>
+    <script type="module" crossorigin src="./assets/index-ts7iibIJ.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-B3T9r5zz.css">
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>

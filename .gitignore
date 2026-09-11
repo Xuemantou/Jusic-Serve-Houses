@@ -31,3 +31,20 @@ build/
 ### VS Code ###
 .vscode/
 /logs/
+
+### 本地前端目录（独立仓库，不属于本后端仓库） ###
+# Jusic-ui   : 前端 fork（有自己的 .git）
+# Jusic-ui-v3: Vue3+Vuetify3 重构版前端
+/Jusic-ui/
+/Jusic-ui-v3/
+
+### 本地工具产物 ###
+/.npm-cache/
+/nohup.out
+
+### 本地审查/验证产物 ###
+/.review/
+/.m2-repo/
+
+### 本地环境变量（含密码，勿提交）###
+.env

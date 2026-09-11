@@ -296,7 +296,11 @@ public class MusicController {
             musicService.clearPlayList(houseId);
             LinkedList<Music> pickList = new LinkedList<>();
             Music music = musicService.getPlaying(houseId);
-            pickList.add(music);
+            // 清空后可能已无正在播放的歌曲，getPlaying 返回 null。
+            // 直接入列表会把 null 推给前端，前端 v-for 渲染 row.id 会抛 TypeError 导致整页白屏。
+            if (music != null) {
+                pickList.add(music);
+            }
             sessionService.send(sessionId, MessageType.NOTICE, Response.success((Object) null, "清空列表成功"),houseId);
             sessionService.send(MessageType.PICK, Response.success(pickList, "清空后的播放列表"),houseId);
 
