@@ -21,10 +21,14 @@
 
 只需要 **Docker** 与 **Docker Compose**（Docker 20.10+ 自带 `docker compose` 子命令）。
 
+**只需要两个文件**——镜像已发布到 Docker Hub，不必 clone 仓库，也不必本地构建：
+
 ```bash
-git clone https://github.com/JumpAlang/Jusic-Serve-Houses.git
-cd Jusic-Serve-Houses
+curl -O https://raw.githubusercontent.com/Xuemantou/Jusic-Serve-Houses/jusic_serve_houses/docker-compose.yml
+curl -O https://raw.githubusercontent.com/Xuemantou/Jusic-Serve-Houses/jusic_serve_houses/.env.example
 ```
+
+要改代码、自己构建镜像，再 clone 整个仓库，见文末[从源码构建](#从源码构建)。
 
 ## 2. 配置
 
@@ -57,7 +61,8 @@ docker compose up -d
 docker compose ps          # 三个服务都应是 Up；jusic-redis 显示 healthy
 ```
 
-首次启动约 30 秒（后端 Spring Boot 启动 + Redis 健康检查）。
+首次会从 Docker Hub 拉取约 1GB 镜像，耗时取决于网速；镜像拉完后约 30 秒起服务。
+之后再启动都是秒级。
 
 ## 4. 访问
 
@@ -210,19 +215,30 @@ mvn -Dmaven.repo.local=.m2-repo clean package -DskipTests
 
 ## 后端镜像（含前端）
 
+构建成与 compose 里同名的 tag，`docker compose up -d` 就会直接用本地这份，不再去拉取：
+
 ```bash
-docker build -t jusic-serve-houses:latest .
+docker build -t xuemantou05/jusic-serve-houses:latest .
 docker compose up -d jusic
 ```
 
+> 若你 fork 成了自己的仓库，建议把镜像名换成自己的 Docker Hub 用户名，
+> 并同步修改 `docker-compose.yml` 里 `jusic` 与 `music-api` 的 `image:`。
+
 ## 音乐 API 镜像（网易 + QQ 二合一）
 
-构建上下文在 `.docker-build/`，需要先把两个音源项目的源码放进去：
+构建上下文在 `.docker-build/`，两个音源项目的源码已随仓库提供，直接构建即可：
 
 ```bash
-git clone --depth 1 https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced.git .docker-build/netease
-git clone --depth 1 https://github.com/jsososo/QQMusicApi.git .docker-build/qq
-docker build -t jusic-music-api:2in1 .docker-build
+docker build -t xuemantou05/jusic-music-api:latest .docker-build
+docker compose up -d music-api
+```
+
+要同步上游新版时再自行拉取比对（`.docker-build/` 里有本项目的本地改动，需手工合并）：
+
+```bash
+git clone --depth 1 https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced.git /tmp/api-enhanced
+git clone --depth 1 https://github.com/jsososo/QQMusicApi.git /tmp/QQMusicApi
 ```
 
 镜像用 supervisord 在一个容器内托管两个 Node 进程（网易 `:3000`、QQ `:3300`），

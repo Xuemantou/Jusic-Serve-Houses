@@ -1,9 +1,13 @@
 # ============================================================
 # Jusic 点歌房 · Docker Compose 完整栈
 #
+# 只跑起来用：本文件 + 一个 .env 就够，三个镜像都从 Docker Hub 拉取，无需本地构建。
 #   cp .env.example .env && vi .env     # 首次：填好「必改」项
 #   docker compose up -d
 #   浏览器打开 http://localhost:8080
+#
+# 首次会拉取约 1GB 镜像（之后启动都是秒级）。
+# 要自己改代码、自己构建镜像：见 README「从源码构建」。
 #
 # 三个服务：
 #   redis      房间 / 点歌列表 / 配置存储（只在容器网络内，不暴露端口）
@@ -34,10 +38,9 @@ services:
       retries: 5
 
   music-api:
-    # 二合一聚合镜像：网易(3000) + QQ(3300)。
-    # 本地构建方式见 .docker-build/Dockerfile；也可以换成你自己的远端镜像，例如：
-    #   image: yourname/jusic-music-api:2in1
-    image: jusic-music-api:2in1
+    # 二合一聚合镜像：网易(3000) + QQ(3300)，取自 Docker Hub。
+    # 改了这两个 API 的源码要自己构建时，见 .docker-build/Dockerfile 与 README「从源码构建」。
+    image: xuemantou05/jusic-music-api:latest
     container_name: jusic-music-api
     restart: always
     environment:
@@ -61,8 +64,9 @@ services:
       - "127.0.0.1:3300:3300"
 
   jusic:
-    build: .
-    image: jusic-serve-houses:latest
+    # 后端 + 前端（前端已打进 jar，同源提供），取自 Docker Hub。
+    # 改后端代码要自己构建时，见 README「从源码构建」。
+    image: xuemantou05/jusic-serve-houses:latest
     container_name: jusic-serve
     restart: always
     depends_on:
