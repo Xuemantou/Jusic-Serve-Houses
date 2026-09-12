@@ -28,6 +28,9 @@ curl -O https://raw.githubusercontent.com/Xuemantou/Jusic-Serve-Houses/jusic_ser
 curl -O https://raw.githubusercontent.com/Xuemantou/Jusic-Serve-Houses/jusic_serve_houses/.env.example
 ```
 
+`raw.githubusercontent.com` 访问不了时，直接打开仓库页面，逐个点开这两个文件用「Raw / 下载」按钮
+存到同一个目录即可（分支选 `jusic_serve_houses`）：<https://github.com/Xuemantou/Jusic-Serve-Houses>
+
 要改代码、自己构建镜像，再 clone 整个仓库，见文末[从源码构建](#从源码构建)。
 
 ## 2. 配置
