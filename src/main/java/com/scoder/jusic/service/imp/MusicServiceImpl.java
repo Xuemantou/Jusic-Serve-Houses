@@ -8,6 +8,7 @@ import com.scoder.jusic.common.page.Page;
 import com.scoder.jusic.configuration.JusicProperties;
 import com.scoder.jusic.model.*;
 import com.scoder.jusic.repository.*;
+import com.scoder.jusic.service.MailService;
 import com.scoder.jusic.service.MusicService;
 import com.scoder.jusic.util.KWTrackUrlReq;
 import com.scoder.jusic.util.NeteaseMusicLoginRefresher;
@@ -34,6 +35,16 @@ public class MusicServiceImpl implements MusicService {
 
     public static String NETEASE_COOKIE = "";
 
+    /**
+     * 网易 cookie 失效告警限流：上次告警的时间戳（毫秒）
+     */
+    private static final java.util.concurrent.atomic.AtomicLong LAST_TRIAL_WARN =
+            new java.util.concurrent.atomic.AtomicLong(0L);
+    /**
+     * 同一失效状态的最小告警间隔：1 小时
+     */
+    private static final long TRIAL_WARN_INTERVAL = 3600_000L;
+
     @Autowired
     private JusicProperties jusicProperties;
     @Autowired
@@ -59,6 +70,8 @@ public class MusicServiceImpl implements MusicService {
 
     @Autowired
     private RetainKeyRepository retainKeyRepository;
+    @Autowired
+    private MailService mailService;
     /**
      * 把音乐放进点歌列表
      */
@@ -167,8 +180,11 @@ public class MusicServiceImpl implements MusicService {
         if (!"ai".equals(result.getSource()) && !"lz".equals(result.getSource()) && result.getPickTime() + jusicProperties.getMusicExpireTime() <= System.currentTimeMillis()) {
             String musicUrl;
             if("qq".equals(result.getSource())){
-//                musicUrl = this.getQQMusicUrl(result.getId(),result.getMediaMid(),result.getQuality());
-                musicUrl = this.getKwXmUrlIterator(result.getName()+" "+result.getArtist(),result.getQuality());
+                // 优先走 QQ 官方取链（Node API /song/urls），失败则由下方统一兜底到酷我
+                musicUrl = this.getQQMusicUrl(result.getId());
+                if(musicUrl == null){
+                    musicUrl = this.getKwXmUrlIterator(result.getName()+" "+result.getArtist(),result.getQuality());
+                }
             }else if("mg".equals(result.getSource())){
                 musicUrl = this.getMGMusicUrl(result.getId(),result.getName());
             }else{
@@ -206,7 +222,21 @@ public class MusicServiceImpl implements MusicService {
                 if(!org.springframework.util.StringUtils.isEmpty(tempCookie)){
                     NETEASE_COOKIE = tempCookie;
                 }
-                NeteaseMusicLoginRefresher.refresh(retainKey.getNeteaseCookie());
+                // 刷新登录态，并把网易返回的新 cookie 回写，否则这次刷新等于白做
+                String newCookie = NeteaseMusicLoginRefresher.refresh(retainKey.getNeteaseCookie());
+                if(!org.springframework.util.StringUtils.isEmpty(newCookie)){
+                    retainKey.setNeteaseCookie(newCookie);
+                    retainKeyRepository.updateRetainKey(retainKey);
+                    String refreshed = ReUtil.get("MUSIC_U=(.*?);", newCookie, 0);
+                    if(!org.springframework.util.StringUtils.isEmpty(refreshed)){
+                        NETEASE_COOKIE = refreshed;
+                    }
+                    log.info("网易 cookie 已刷新并回写 Redis");
+                }else{
+                    // 没拿到新 cookie 不一定代表失效（MUSIC_U 通常长期不变），
+                    // 真正的失效由取歌时的 freeTrialInfo 检测兜底告警
+                    log.warn("网易 cookie 刷新未返回新 cookie，留意试听告警");
+                }
             }
     }
 
@@ -1003,11 +1033,12 @@ public class MusicServiceImpl implements MusicService {
                         long duration = trackInfoJSON.getLong("interval")*1000;
                         music.setDuration(duration);
 
-//                        String url = getQQMusicUrl(id,mediaMid,quality);
-//                        if(url == null){
-//                            url = this.getKwXmUrlIterator(music.getName()+" "+music.getArtist(),quality);
-//                        }
-                        String url = this.getKwXmUrlIterator(music.getName()+" "+music.getArtist(),quality);
+                        // 优先走 QQ 官方取链（Node API /song/urls，依赖容器内有效的 QQ 会员 cookie）
+                        String url = this.getQQMusicUrl(id);
+                        // 取不到（cookie 失效 / 该曲无权限 / 容器网络异常）时，按原逻辑降级到酷我
+                        if(url == null){
+                            url = this.getKwXmUrlIterator(music.getName()+" "+music.getArtist(),quality);
+                        }
                         if(url == null){
                             Music temp = new Music();
                             temp.setName(music.getName()+" "+music.getArtist());
@@ -1370,6 +1401,11 @@ public class MusicServiceImpl implements MusicService {
 //                    log.info("获取音乐链接结果：{}, response: {}", jsonObject.get("message"), jsonObject);
                     if (jsonObject.get("code").equals(200)) {
                         JSONObject data = jsonObject.getJSONArray("data").getJSONObject(0);
+                        // 网易对无有效登录态的取链请求不报错，而是返回 30 秒试听片段，
+                        // 这里主动检测并告警，避免"会员失效"被静默当成正常歌曲推给用户
+                        if (data.get("freeTrialInfo") != null) {
+                            this.warnNeteaseTrial(musicId);
+                        }
                         result = data.getString("url");
 //                        if(result.indexOf("/ymusic/") != -1){
 //                            result = "https://music.163.com/song/media/outer/url?id="+musicId+".mp3";
@@ -1384,6 +1420,38 @@ public class MusicServiceImpl implements MusicService {
         }
 
         return result;
+    }
+
+    /**
+     * 网易 cookie / 会员权限失效告警。
+     * <p>
+     * 网易对无有效登录态的取链请求不会报错，而是返回 30 秒试听片段
+     * （data[0].freeTrialInfo 非空）。若不主动检测，对外表现只是"歌能放但很短"，
+     * 极难发现。这里检测到后推送 Server 酱告警。
+     * <p>
+     * 同一失效状态 1 小时内最多告警一次，避免每首歌都推送刷屏。
+     */
+    private void warnNeteaseTrial(String musicId) {
+        long now = System.currentTimeMillis();
+        long last = LAST_TRIAL_WARN.get();
+        if (now - last < TRIAL_WARN_INTERVAL) {
+            return;
+        }
+        // CAS 保证并发取歌时只有一个线程推送
+        if (!LAST_TRIAL_WARN.compareAndSet(last, now)) {
+            return;
+        }
+        log.error("⚠️ 网易返回 30 秒试听片段，NETEASE_COOKIE 可能已失效！musicId={}", musicId);
+        try {
+            boolean ok = mailService.sendServerJ(
+                    "点歌房告警：网易 cookie 可能已失效",
+                    "网易取链返回的是 30 秒试听片段，说明 NETEASE_COOKIE 已失效或会员权限不足。\n"
+                            + "触发歌曲 musicId：" + musicId + "\n"
+                            + "处理方式：重新抓取 MUSIC_U，调用 /netease/setCookiePost 灌入。");
+            log.error("网易失效告警推送{}", ok ? "成功" : "失败");
+        } catch (Exception e) {
+            log.error("网易失效告警推送异常: {}", e.getMessage());
+        }
     }
 
     @Override

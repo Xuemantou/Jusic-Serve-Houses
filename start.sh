@@ -5,7 +5,8 @@
 # 用法：
 #   ./start.sh                            # 前台启动（直接看日志，Ctrl-C 停止）
 #   ./start.sh --server.port=9000         # 额外参数透传给 Spring Boot
-#   DAEMON=1 ./start.sh                   # 后台启动，日志写入 logs/app.log
+#   DAEMON=1 ./start.sh                   # 后台启动，控制台输出写入 nohup.out
+#                                         #   （logback 自己的 logs/common-error.log 照常写）
 #   JAVA_OPTS="-Xmx512m" ./start.sh       # 追加 JVM 参数
 #
 # 说明：Spring Boot 不原生识别 .env 文件，这里用 `set -a` 把其中的 KEY=VALUE
@@ -45,9 +46,10 @@ fi
 # ---- 启动 ----
 if [ "${DAEMON:-0}" = "1" ]; then
   mkdir -p logs
+  # 控制台输出统一进 nohup.out；注意它不会自动轮转，长期运行需自行轮转或清理
   # shellcheck disable=SC2086
-  nohup java ${JAVA_OPTS:-} -jar "$JAR" "$@" >> logs/app.log 2>&1 &
-  echo "已后台启动（pid $!），日志：logs/app.log"
+  nohup java ${JAVA_OPTS:-} -jar "$JAR" "$@" >> nohup.out 2>&1 &
+  echo "已后台启动（pid $!），日志：nohup.out"
 else
   echo "启动 $JAR ..."
   # shellcheck disable=SC2086

@@ -42,6 +42,9 @@ build/
 /.npm-cache/
 /nohup.out
 
+### 外置静态资源目录（deploy.sh --web 生成，改前端不用重打 jar）###
+/webroot/
+
 ### 本地审查/验证产物 ###
 /.review/
 /.m2-repo/
@@ -50,4 +53,4 @@ build/
 .env
 
 ### 本地构建备份（体积大，勿提交）###
-*.jar.bak
+*.jar.bak*

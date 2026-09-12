@@ -67,6 +67,11 @@ public class MailServiceImpl implements MailService {
         }
 
 
+        // 防止推送服务无响应时无限阻塞调用线程
+        // （网易 cookie 失效告警是在取歌热路径上被调用的，不能卡住点歌）
+        conn.setConnectTimeout(5000);
+        conn.setReadTimeout(8000);
+
         wr.writeBytes(postData);
         wr.flush();
         wr.close();

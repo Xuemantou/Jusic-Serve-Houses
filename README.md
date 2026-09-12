@@ -129,6 +129,29 @@
      --spring.resources.static-locations=file:/path/to/webroot/,classpath:/static/
    ```
 
+8. 重构/开发期：一键构建与重启
+
+   改完代码不必手工重跑「npm build → 复制产物 → mvn package → kill → 启动」，
+   仓库根目录提供了两个脚本：
+
+   | 场景 | 命令 |
+   |---|---|
+   | 改前端 | `./deploy.sh --web`（build + 同步到 `webroot/`，**不重打 jar**，刷新浏览器即可）|
+   | 改后端 | `./deploy.sh --backend`（mvn package + 重启）|
+   | 改 `.env` | `./deploy.sh --restart` |
+   | 全量 | `./deploy.sh` |
+   | 预演 | `./deploy.sh --dry-run` |
+   | 后端热重载 | `./dev.sh`，另开终端 `./dev.sh compile` 触发自动重启 |
+
+   要点：
+   - 静态资源走外置目录 `webroot/`（由 `StaticLocations` 环境变量注入，默认值与改动前
+     完全一致），所以改前端不再需要重打 43MB 的 jar
+   - 进程号在 `logs/app.pid`，控制台日志 `logs/console.log`；停止时先发 SIGTERM 优雅停机，
+     超时才 `kill -9`
+   - `./dev.sh` 用的是 `mvn spring-boot:run` + devtools：devtools 在 `java -jar` 跑 fat jar 时
+     会被自动禁用，因此生产启动不受影响
+   - 远程生产发布方案与「什么时候才值得上 CI/CD」，见 `.review/部署与联调指南.md` 第 9 节
+
 ## 使用
 
 在聊天窗口发送指令即可，**普通用户**：

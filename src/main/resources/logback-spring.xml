@@ -51,7 +51,14 @@
         </logger>
     </springProfile>
     <springProfile name="prod">
-        <logger name="com.scoder" level="ERROR">
+        <!--
+          业务日志：INFO 及以上写入 logs/common-all.log（pattern 带方法名与行号，便于排查），
+          ERROR 另由 ERROR appender 写入 logs/common-error.log。
+          注意：不要把 COMMON 挂给 org.springframework。主类 JusicApplication 硬编码开启了
+          Spring 的 debug 模式，框架 DEBUG 会被一并灌进 common-all.log，反而淹没业务日志。
+        -->
+        <logger name="com.scoder" level="INFO">
+            <appender-ref ref="COMMON" />
             <appender-ref ref="ERROR" />
         </logger>
         <logger name="org.springframework" level="ERROR">

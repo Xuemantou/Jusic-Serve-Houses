@@ -43,6 +43,22 @@
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
+        <!--
+          开发期热重载。用法：终端 A 跑 ./dev.sh，终端 B 改完代码跑 ./dev.sh compile，
+          devtools 检测到 target/classes 变化会自动重启（秒级），
+          不必"重打 43MB fat jar + 手工 kill + 重启"。
+
+          两点事实，避免误期待：
+            1. devtools 在 `java -jar` 运行打包好的 fat jar 时是禁用的，
+               所以生产启动（start.sh / deploy.sh）完全不受影响；
+            2. spring-boot-maven-plugin 打包时默认排除 devtools，不会进产物。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <optional>true</optional>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

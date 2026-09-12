@@ -1,4 +1,11 @@
 spring:
+  # 静态资源位置。默认值与改动前完全一致（jar 内 classpath:/static/）。
+  # 重构期改前端时不必重打 jar：由 deploy.sh 注入外部目录即可
+  #   StaticLocations=file:/abs/path/webroot/,classpath:/static/
+  # 外部目录在前 → 优先命中；classpath 在后 → 兜底。两者都写才完整。
+  resources:
+    static-locations: ${StaticLocations:classpath:/META-INF/resources/,classpath:/resources/,classpath:/static/,classpath:/public/}
+
   security:
     user:
       name: ${APIUSER:admin}

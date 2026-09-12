@@ -11,7 +11,9 @@ import kong.unirest.JsonNode;
 import kong.unirest.Unirest;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -44,7 +46,13 @@ public class NeteaseMusicLoginRefresher {
         return cookieStr.toString();
     }
 
-    public static void refresh(String cookie) {
+    /**
+     * 刷新网易登录态。
+     *
+     * @param cookie 现有 cookie（完整串）
+     * @return 网易返回的新 cookie 串；失败或没有新 cookie 时返回 null
+     */
+    public static String refresh(String cookie) {
         try {
 
             // 转换 Cookie 字符串为 Map
@@ -84,24 +92,46 @@ public class NeteaseMusicLoginRefresher {
                 .asJson();
 
         // 检查响应
-        if (response.isSuccess()) {
-            String responseBody = response.getBody().toString();
-            Map<String, Object> body = objectMapper.readValue(responseBody, Map.class);
-            Object codeObj = body.get("code");
-            if (codeObj == null || codeObj.toString() != "200") {
-                log.error("网易云刷新登录失败(code: " + codeObj + ")");
-            }
-        } else {
-            log.error("HTTP Request failed with code: " + response.getStatus());
+        if (!response.isSuccess()) {
+            log.error("网易云刷新登录 HTTP 失败: {}", response.getStatus());
+            return null;
         }
+        String responseBody = response.getBody().toString();
+        Map<String, Object> body = objectMapper.readValue(responseBody, Map.class);
+        Object codeObj = body.get("code");
+        // 原实现写成 codeObj.toString() != "200"（字符串引用比较），导致刷新成功也被判为失败
+        if (codeObj == null || !"200".equals(codeObj.toString())) {
+            log.error("网易云刷新登录失败(code: {})", codeObj);
+            return null;
+        }
+        // 刷新成功后必须把新 cookie 取出来回写，否则这次刷新等于白做
+        List<String> setCookies = new ArrayList<>();
+        for (kong.unirest.Header h : response.getHeaders().all()) {
+            if ("set-cookie".equalsIgnoreCase(h.getName())) {
+                setCookies.add(h.getValue());
+            }
+        }
+        if (setCookies.isEmpty()) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String sc : setCookies) {
+            // Set-Cookie 形如 "MUSIC_U=xxx; Path=/; Domain=...; Max-Age=..."
+            int end = sc.indexOf(';');
+            String kv = (end > 0 ? sc.substring(0, end) : sc).trim();
+            if (!kv.isEmpty()) {
+                sb.append(kv).append("; ");
+            }
+        }
+        return sb.length() == 0 ? null : sb.toString();
     } catch (Exception e) {
         log.error(e.getMessage(),e);
+        return null;
     }
     }
 
     public static void main(String[] args) throws Exception {
-        refresh("xx");
-
+        System.out.println(refresh("xx"));
     }
 }
 
