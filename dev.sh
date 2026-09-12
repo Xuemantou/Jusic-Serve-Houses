@@ -22,6 +22,19 @@
 #    Spring Boot 会自动禁用 devtools —— 生产启动（start.sh / deploy.sh）正是靠这一点
 #    完全不受影响，两者互不干扰。
 #
+# ⚠️ 热重启不是无限可用的，重启几次后必然崩：
+#    devtools 重启若干次后会撞上 CGLIB 的
+#      LinkageError: loader 'app' attempted duplicate class definition for
+#      ...WebSocketHandlerDecorator$$FastClassBySpringCGLIB$$
+#    应用起不来、端口不再监听，而且这个错误**无法自愈**（classloader 已被污染），
+#    再跑几次 compile 也没用。此时 Ctrl-C 后重新 ./dev.sh 即可（新 JVM 是干净的）。
+#    判断方法：logs/common-error.log 里出现上述 LinkageError，
+#    或启动日志里出现成对的 "JusicDisposable.destroy" 而端口不通。
+#
+#    另一个坑：本脚本用 mvn compile 触发的重启走的是完整 spring-boot:run 生命周期，
+#    会执行 test-compile；若测试代码引用了已删除的类，会以编译失败的形式
+#    表现成"后端起不来"。删 Java 类时记得连 src/test 一起查。
+#
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

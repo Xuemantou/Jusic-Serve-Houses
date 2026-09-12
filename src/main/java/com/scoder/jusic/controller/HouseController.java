@@ -75,6 +75,21 @@ public class HouseController {
             }
             house.setPassword(house.getPassword().trim());
         }
+        // 房间管理员密码：由创建者设置，用于进入本房间的管理面板（/auth/admin 提权为 admin）。
+        // 它会被当作 /auth/adminpwd/{password} 的路径参数，故与房间密码一样禁用 URL 特殊字符。
+        if(house.getAdminPwd() == null || house.getAdminPwd().trim().length() < 4){
+            sessionService.send(sessionId,
+                    MessageType.ADD_HOUSE,
+                    Response.failure((Object) null, "请设置房间管理员密码（至少4位）"),houseId);
+            return;
+        }
+        if(StringUtils.isUrlSpecialCharacter(house.getAdminPwd())){
+            sessionService.send(sessionId,
+                    MessageType.ADD_HOUSE,
+                    Response.failure((Object) null, "管理员密码不能有如下字符：空格、?、%、#、&、=、+"),houseId);
+            return;
+        }
+        house.setAdminPwd(house.getAdminPwd().trim());
         if(houseContainer.contains(sessionId)){
             sessionService.send(sessionId,
                     MessageType.ADD_HOUSE,
@@ -132,7 +147,9 @@ public class HouseController {
         house.setCreateTime(System.currentTimeMillis());
         house.setSessionId(sessionId);
         house.setRemoteAddress(ip);//IPUtils.getRemoteAddress(request);
-        house.setAdminPwd(jusicProperties.getRoleAdminPassword());
+        // 管理员密码沿用创建者设置的值。
+        // 原来这里写死 house.setAdminPwd(jusicProperties.getRoleAdminPassword())，
+        // 把每个房间的管理员密码都覆盖成同一个全局值，房间级密码于是形同虚设。
         oldSession.getAttributes().put("houseId",sessionId);
         sessionService.putSession(oldSession,sessionId);
         houseContainer.add(house);
@@ -293,6 +310,115 @@ public class HouseController {
         }
         String sessionId = accessor.getHeader("simpSessionId").toString();
         sessionService.send(sessionId, MessageType.SEARCH_HOUSE, Response.success(housesSimple, "房间列表"),houseId);
+    }
+
+    /**
+     * 读取当前房间的完整信息（房间管理面板回填表单用）。
+     *
+     * 需要单独一个接口的原因：HTTP 的 /house/get 与 STOMP 的 /house/search 都只返回
+     * 精简字段（name/desc/needPwd…），**都不含 enableStatus**，
+     * 管理面板因此无法显示「房间永存」的真实开关状态。
+     * 房间密码不回传明文，改密码时留空即表示不修改。
+     */
+    @MessageMapping("/house/info")
+    public void houseInfo(StompHeaderAccessor accessor) {
+        String sessionId = accessor.getHeader("simpSessionId").toString();
+        String houseId = (String)accessor.getSessionAttributes().get("houseId");
+        String role = sessionService.getRole(sessionId, houseId);
+        if (!"root".equals(role) && !"admin".equals(role)) {
+            sessionService.send(sessionId, MessageType.NOTICE, Response.failure((Object) null, "你没有权限"), houseId);
+            return;
+        }
+        House housePrimitive = houseContainer.get(houseId);
+        if (housePrimitive == null) {
+            sessionService.send(sessionId, MessageType.HOUSE_INFO, Response.failure((Object) null, "当前房间不存在"), houseId);
+            return;
+        }
+        House info = new House();
+        info.setId(housePrimitive.getId());
+        info.setName(housePrimitive.getName());
+        info.setDesc(housePrimitive.getDesc());
+        info.setNeedPwd(housePrimitive.getNeedPwd());
+        info.setEnableStatus(housePrimitive.getEnableStatus());
+        sessionService.send(sessionId, MessageType.HOUSE_INFO, Response.success((Object) info, "房间信息"), houseId);
+    }
+
+    /**
+     * 修改当前房间信息（房间管理面板用）。
+     *
+     * 走 STOMP 而不复用 HTTP 的 /house/edit：房间管理权限是**房间级**的——
+     * /auth/admin 拿本房间的管理员密码把 STOMP session 提权成 admin，
+     * 而 HTTP 请求读不到这个角色，只能逼前端每次请求都重传一遍密码。
+     *
+     * 只修改传入的字段（null 视为不改），避免前端漏传字段就把房间信息清空。
+     */
+    @MessageMapping("/house/edit")
+    public void editHouse(House house, StompHeaderAccessor accessor) {
+        String sessionId = accessor.getHeader("simpSessionId").toString();
+        String houseId = (String)accessor.getSessionAttributes().get("houseId");
+        String role = sessionService.getRole(sessionId, houseId);
+        if (!"root".equals(role) && !"admin".equals(role)) {
+            sessionService.send(sessionId, MessageType.NOTICE, Response.failure((Object) null, "你没有权限"), houseId);
+            return;
+        }
+        House housePrimitive = houseContainer.get(houseId);
+        if (housePrimitive == null) {
+            sessionService.send(sessionId, MessageType.NOTICE, Response.failure((Object) null, "当前房间不存在"), houseId);
+            return;
+        }
+        // 销毁房间：不可逆，放在其它字段处理之前，避免「边删边改」
+        if (house.getCanDestroy() != null && house.getCanDestroy()) {
+            houseContainer.destroy(houseId);
+            // 广播给全房间：房间没了，所有人都要退回首页
+            sessionService.send(MessageType.HOUSE_DESTROYED, Response.success((Object) null, "房间已被管理员销毁"), houseId);
+            return;
+        }
+        if (house.getName() != null) {
+            String name = house.getName().trim();
+            if (name.isEmpty() || name.length() > 33) {
+                sessionService.send(sessionId, MessageType.NOTICE, Response.failure((Object) null, "房间名称不能为空且不能超过33个字符"), houseId);
+                return;
+            }
+            housePrimitive.setName(name);
+        }
+        if (house.getDesc() != null) {
+            if (house.getDesc().length() > 133) {
+                sessionService.send(sessionId, MessageType.NOTICE, Response.failure((Object) null, "房间描述不能超过133个字符"), houseId);
+                return;
+            }
+            housePrimitive.setDesc(house.getDesc().trim());
+        }
+        // 房间密码：开关打开时必须存在密码；任何传入的密码都要过 URL 特殊字符校验
+        if (house.getNeedPwd() != null) {
+            if (house.getNeedPwd()) {
+                String pwd = house.getPassword() != null ? house.getPassword().trim() : housePrimitive.getPassword();
+                if (pwd == null || pwd.isEmpty()) {
+                    sessionService.send(sessionId, MessageType.NOTICE, Response.failure((Object) null, "房间密码不能为空"), houseId);
+                    return;
+                }
+                if (StringUtils.isUrlSpecialCharacter(pwd)) {
+                    sessionService.send(sessionId, MessageType.NOTICE, Response.failure((Object) null, "密码不能有如下字符：空格、?、%、#、&、=、+"), houseId);
+                    return;
+                }
+                housePrimitive.setPassword(pwd);
+            }
+            housePrimitive.setNeedPwd(house.getNeedPwd());
+        } else if (house.getPassword() != null && !house.getPassword().trim().isEmpty()) {
+            String pwd = house.getPassword().trim();
+            if (StringUtils.isUrlSpecialCharacter(pwd)) {
+                sessionService.send(sessionId, MessageType.NOTICE, Response.failure((Object) null, "密码不能有如下字符：空格、?、%、#、&、=、+"), houseId);
+                return;
+            }
+            housePrimitive.setPassword(pwd);
+        }
+        if (house.getEnableStatus() != null) {
+            housePrimitive.setEnableStatus(house.getEnableStatus());
+        }
+        // 永存状态决定 Redis 里的留存名单，改完必须立刻同步，否则重启后保留的不是这个房间
+        houseContainer.refreshHouses();
+        // 广播给全房间：app bar 上显示的房间名要跟着变
+        sessionService.send(MessageType.EDIT_HOUSE,
+                Response.success((Object) housePrimitive, "房间信息已更新"), houseId);
     }
 
     /**

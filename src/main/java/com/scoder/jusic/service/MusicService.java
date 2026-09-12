@@ -79,8 +79,6 @@ public interface MusicService {
     Music getQQMusic(Music music);
     Music getWYMusic(Music music);
 
-    Music getLZMusic(Integer index);
-
     Music getAIMusic(String id);
 
     Music getWYMusicById(String id,String quality);

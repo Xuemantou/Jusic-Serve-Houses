@@ -126,6 +126,15 @@ public class MusicJob {
     private void processHouse(House house){
         log.info("检测到推送开关已开启");
         Music music = musicService.musicSwitch(house.getId());
+        // musicSwitch 在「默认列表里的歌全都取不到播放地址」时会返回 null
+        // （原实现兜底到李志歌单，该功能已移除）。必须在这里提前返回：
+        // 往下走马上就会访问 music.getDuration()。
+        // 同时记得关掉推送开关，否则定时任务会一直重试同一轮。
+        if (music == null) {
+            log.info("本轮没有可推送的歌曲，跳过：{}", house.getName());
+            configRepository.setPushSwitch(false, house.getId());
+            return;
+        }
         long pushTime = System.currentTimeMillis();
         if(music.getDuration() == null){
             music.setDuration(300000L);

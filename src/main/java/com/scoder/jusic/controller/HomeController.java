@@ -65,6 +65,15 @@ public class HomeController {
             }
             house.setPassword(house.getPassword().trim());
         }
+        // 房间管理员密码：由创建者设置，用于进入本房间的管理面板（/auth/admin 提权为 admin）。
+        // 它会被当作 /auth/adminpwd/{password} 的路径参数，故与房间密码一样禁用 URL 特殊字符。
+        if(house.getAdminPwd() == null || house.getAdminPwd().trim().length() < 4){
+            return Response.failure((Object) null, "请设置房间管理员密码（至少4位）");
+        }
+        if(StringUtils.isUrlSpecialCharacter(house.getAdminPwd())){
+            return Response.failure((Object) null, "管理员密码不能有如下字符：空格、?、%、#、&、=、+");
+        }
+        house.setAdminPwd(house.getAdminPwd().trim());
         if(houseContainer.contains(sessionId)){
             return Response.failure((Object) null, "你已经创建过一个房间，待其被自动腾空方可再创建");
         }
@@ -75,9 +84,14 @@ public class HomeController {
         if(houseContainer.isBeyondIpHouse(ip,jusicProperties.getIpHouse())){
             return Response.failure((Object) null, "该网络暂时不能新增房间，待其他空房间被自动腾空方可创建。");
         }
-        if(house.getEnableStatus() != null && house.getEnableStatus()){
+        // 「房间永存」是否需要赞赏订单号，由 jusic.retain-require-key 决定（默认关闭）。
+        // 关闭时：任何部署都能直接创建永久房间，适合自建给朋友用。
+        // 打开时：恢复原版的「赞赏解锁」行为，订单号经 /house/addRetainKey/{key} 发放。
+        // 注意 /house/edit 本来就不校验订单号，所以这里的限制只作用于「创建」这一步。
+        if(house.getEnableStatus() != null && house.getEnableStatus()
+                && Boolean.TRUE.equals(jusicProperties.getRetainRequireKey())){
             if(house.getRetainKey() == null || "".equals(house.getRetainKey().trim())){
-                return Response.failure((Object) null, "订单号不能为空");
+                return Response.failure((Object) null, "本服务器创建永久房间需要赞赏订单号");
             }
             RetainKey key = houseContainer.getRetainKey(house.getRetainKey());
             if(key == null){
@@ -98,7 +112,9 @@ public class HomeController {
 //        house.setEnableStatus(false);
         house.setSessionId(sessionId);
         house.setRemoteAddress(ip);
-        house.setAdminPwd(jusicProperties.getRoleAdminPassword());
+        // 管理员密码沿用创建者设置的值。
+        // 原来这里写死 house.setAdminPwd(jusicProperties.getRoleAdminPassword())，
+        // 把每个房间的管理员密码都覆盖成同一个全局值，房间级密码于是形同虚设。
         houseContainer.add(house);
         return Response.success(sessionId,"创建房间成功");
     }
@@ -144,11 +160,20 @@ public class HomeController {
     @RequestMapping("/house/edit")
     @ResponseBody
     public Response edit(@RequestBody House house, HttpServletRequest accessor) {
-        // TODO  权限认证
-//        String ip = IPUtils.getRemoteAddress(accessor);
             House housePrimitive = houseContainer.get(house.getId());
             if(housePrimitive == null){
                 return Response.failure((Object)null,"当前房间不存在");
+            }
+            // 鉴权：要求提供本房间当前的管理员密码（创建房间时设置的那个）。
+            //
+            // 刻意不用「创建者 HTTP session」来鉴权：/house/edit 不在 Spring Security 的 permitAll
+            // 名单里，Basic 认证成功会触发 session fixation 保护**换掉 session id**，
+            // 于是创建者的 session 与该房间的 id 永远对不上（实测必然失败）。
+            // 房间管理面板走的是 STOMP 的 /house/edit（按房间管理员角色鉴权），不依赖这里。
+            String providedPwd = house.getAdminPwd();
+            String actualPwd = housePrimitive.getAdminPwd();
+            if(providedPwd == null || actualPwd == null || !providedPwd.equals(actualPwd)){
+                return Response.failure((Object)null,"需要房间管理员密码");
             }
             if(house.getCanDestroy() != null && house.getCanDestroy()){
                 houseContainer.destroy(house.getId());
@@ -175,9 +200,8 @@ public class HomeController {
             if(house.getEnableStatus() != null){
                 housePrimitive.setEnableStatus(house.getEnableStatus());
             }
-            if(house.getAdminPwd() != null){
-                housePrimitive.setAdminPwd(house.getAdminPwd());
-            }
+            // adminPwd 只作为上面的鉴权凭证，不在这里修改：
+            // 改管理员密码请走 STOMP 的 /auth/adminpwd/{password}（需房间管理员权限）
             if(housePrimitive.getEnableStatus() != null && housePrimitive.getEnableStatus()){
                 houseContainer.refreshHouses();
             }

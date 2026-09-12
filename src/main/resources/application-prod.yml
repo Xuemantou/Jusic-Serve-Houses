@@ -57,6 +57,8 @@ jusic:
   serverJUrl: ${ServerJUrl:https://sc.ftqq.com/SCU64668T909ada7955daadfb64d5e7652b93fb135dad06e659369.send}
   ip_house: ${IpHouse:128}
   house_size: ${HouseSize:128}
+  # 创建「房间永存」是否需要赞赏订单号：false=任何部署都能直接建永久房（默认）
+  retain_require_key: ${RetainRequireKey:false}
   mini_id: ${MiniId:wx693312f83f255cf3}
   mini_secrect: ${MiniSecrect:xx}
   role_root_password: ${RoleRootPassword:xx}

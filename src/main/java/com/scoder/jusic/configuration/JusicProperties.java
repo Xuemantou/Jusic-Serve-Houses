@@ -121,10 +121,6 @@ public class JusicProperties {
      * 网易热门歌曲url
      */
     private String wyTopUrl = "https://music.163.com/discover/toplist?id=3778678";
-    /**
-     * json格式歌曲列表（for禁歌）
-     */
-    private String musicJson = "D:\\JAVA\\IdeaWorkspaces\\Jusic-serve\\src\\main\\resources\\lizhimusic.json";
 
     private String aiUrl = "https://studio-api.suno.ai/api/trending/metaplaylist";
     /**
@@ -147,6 +143,14 @@ public class JusicProperties {
     private String serverJUrl = "https://sc.ftqq.com/SCU64668T909ada7955daadfb64d5e7652b93fb135dad06e659369.send";
     private Integer houseSize = 10;
     private Integer ipHouse = 10;
+    /**
+     * 创建「房间永存」是否必须提供赞赏订单号（retainKey）。
+     *
+     * 默认 false：任何部署都能直接创建永久房间，适合自建给朋友用。
+     * 设为 true 则恢复原版校验——创建永久房间必须先通过 /house/addRetainKey/{key}
+     * 发放订单号，用于「赞赏后解锁」这类运营场景。
+     */
+    private Boolean retainRequireKey = false;
     private Boolean goodModel = true;
     private Boolean randomModel = false;
     private Boolean musicCircleModel = false;

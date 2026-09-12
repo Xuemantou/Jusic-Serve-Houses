@@ -142,7 +142,12 @@ public class MusicServiceImpl implements MusicService {
                     }
                 }
                 if(result == null || "".equals(result.getUrl())){
-                    result = this.getLZMusic(251);
+                    // 原实现在这里兜底到李志歌单（lizhimusic.json 里的直链，不依赖任何音乐平台 API，
+                    // 所以总能播出声音）。该歌单已随「禁歌」音源一并移除，这里改为放弃本轮：
+                    // 返回 null 让调用方跳过这次推送，而不是硬推一首放不出声的歌。
+                    // 注意 musicSwitch 的调用方（MusicJob.processHouse）必须容忍 null，已同步处理。
+                    log.info("默认列表中的歌曲均无法播放，本轮不推送");
+                    return null;
                 }
                 result.setPickTime(System.currentTimeMillis());
                 result.setNickName("system");
@@ -177,7 +182,7 @@ public class MusicServiceImpl implements MusicService {
     @Override
     public void updateMusicUrl(Music result){
         // 防止选歌的时间超过音乐链接的有效时长
-        if (!"ai".equals(result.getSource()) && !"lz".equals(result.getSource()) && result.getPickTime() + jusicProperties.getMusicExpireTime() <= System.currentTimeMillis()) {
+        if (!"ai".equals(result.getSource()) && result.getPickTime() + jusicProperties.getMusicExpireTime() <= System.currentTimeMillis()) {
             String musicUrl;
             if("qq".equals(result.getSource())){
                 // 优先走 QQ 官方取链（Node API /song/urls），失败则由下方统一兜底到酷我
@@ -773,46 +778,6 @@ public class MusicServiceImpl implements MusicService {
         album.setPictureUrl(data.getString("image_url"));
         music.setAlbum(album);
         music.setPictureUrl(data.getString("image_url"));
-        return music;
-    }
-    @Override
-    public Music getLZMusic(Integer index) {
-        Music music = null;
-        String listStr = null;
-        try {
-            listStr = Unirest.get(jusicProperties.getMusicJson()).asString().getBody();//FileOperater.commonReadFile(resourceLoader.getResource(jusicProperties.getMusicJson()));
-        } catch (Exception e) {
-            log.error("读取文件失败，message:[{}]",e.getMessage());
-        }
-        if(listStr == null || "".equals(listStr)) {
-            return null;
-        }
-        JSONArray musicList = JSONArray.parseArray(listStr);
-        JSONObject data = musicList.getJSONObject(index-1);
-        music = new Music();
-        music.setSource("lz");
-        String id = data.getString("id");
-        music.setId(id);
-        String lyrics = "";
-        music.setLyric(lyrics);
-        String name = data.getString("name");
-        music.setName(name);
-        String singerNames = data.getString("artist");
-        music.setArtist(singerNames);
-        String url = data.getString("url");
-        music.setUrl(url);
-        long duration = data.getDouble("duration").longValue();
-        music.setDuration(duration);
-        Album album = new Album();
-        JSONObject albumJSON = data.getJSONObject("album");
-        Integer albumid = albumJSON.getInteger("id");
-        album.setId(albumid);
-        String albumname = albumJSON.getString("name");
-        album.setName(albumname);
-        album.setArtist(singerNames);
-        album.setPictureUrl(data.getString("picture_url"));
-        music.setAlbum(album);
-        music.setPictureUrl(data.getString("picture_url"));
         return music;
     }
 
@@ -1615,8 +1580,6 @@ public class MusicServiceImpl implements MusicService {
             }
         }else if(music.getSource().equals("mg")){
             return searchMG(music,hulkPage);
-        }else if(music.getSource().equals("lz")){
-            return searchLZ(music,hulkPage);
         }else if(music.getSource().equals("ai")){
             return searchAI(music,hulkPage);
         }if(music.getSource().equals("wydt")){
@@ -2631,46 +2594,6 @@ public class MusicServiceImpl implements MusicService {
             }
             return pagedArray;
         }
-    }
-
-
-    private HulkPage searchLZ(Music music,HulkPage hulkPage) {
-        String listStr = null;
-        try {
-            listStr = Unirest.get(jusicProperties.getMusicJson()).asString().getBody();//FileOperater.commonReadFile(resourceLoader.getResource(jusicProperties.getMusicJson()));
-        } catch (Exception e) {
-            log.error("读取文件失败，message:[{}]",e.getMessage());
-        }
-        if(listStr == null || "".equals(listStr)) {
-            hulkPage.setTotalSize(0);
-            hulkPage.setData(new Object[]{});
-            return hulkPage;
-        }
-        JSONArray data = JSONArray.parseArray(listStr);
-        int size = data.size();
-        if(music.getName() == null || "".equals(music.getName())) {
-            List list = JSONObject.parseObject(JSONObject.toJSONString(getCurrentPageList(hulkPage.getPageIndex(),hulkPage.getPageSize(),data)), List.class);
-            hulkPage.setData(list);
-            hulkPage.setTotalSize(size);
-            return hulkPage;
-        }
-        JSONArray buildJSONArray = new JSONArray();
-        for(int i = 0; i < size; i++) {
-            JSONObject jsonObject = data.getJSONObject(i);
-            if (jsonObject.getString("artist").indexOf(music.getName()) != -1 || jsonObject.getString("name").indexOf(music.getName()) != -1 || jsonObject.getJSONObject("album").getString("name").indexOf(music.getName()) != -1) {
-                buildJSONArray.add(jsonObject);
-            }
-        }
-        if(buildJSONArray.size() > 0){
-            List list = JSONObject.parseObject(JSONObject.toJSONString(getCurrentPageList(hulkPage.getPageIndex(),hulkPage.getPageSize(),buildJSONArray)), List.class);
-            hulkPage.setTotalSize(buildJSONArray.size());
-            hulkPage.setData(list);
-        }else{
-            hulkPage.setTotalSize(0);
-            hulkPage.setData(new Object[]{});
-            return hulkPage;
-        }
-        return hulkPage;
     }
     private HulkPage searchAI(Music music,HulkPage hulkPage) {
         String listStr = null;
