@@ -1,160 +1,142 @@
-## 使用edgeOne 全球加速，一键部署点击下方一键加速
-[![使用 EdgeOne Pages 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?repository-url=https%3A%2F%2Fgithub.com%2FJumpAlang%2FJusic-Serve-Houses%2Ftree%2Fjusic_serve_houses%2Fsrc%2Fmain%2Fresources%2Fstatic&root-directory=src%2Fmain%2Fresources&output-directory=.)
+# 一起听歌吧 · 多房间点歌房
 
-> 热烈庆祝一起听歌吧微信小程序上架成功，搜索：***灵魂自习室***
+基于 Spring Boot 的多房间同步听歌应用：多人进同一个房间，点歌、聊天、投票切歌，所有人的播放进度保持同步。
+前端（Vue 3 + Vuetify）已内置在后端 jar 中，由后端同源提供，**一条 `docker compose up -d` 就能跑起整套服务**。
 
-> 使用docker一键部署一起听歌吧应用，从此你也拥有了自己的点歌台，docker部署详见下方
-
-> 一起听歌吧官方所使用服务器配置,趁双11新用户1年只要84元（建议买3年）：[阿里云ecs_t5_突发型](https://www.aliyun.com/minisite/goods?userCode=ze4tzlf9&share_source=copy_link)
-> 趁双11腾讯云新用户1年只要88元（建设买3年）：[腾讯云标准型S4](https://cloud.tencent.com/act/cps/redirect?redirect=10140&cps_key=52c40793a9f078023fbc4d27eee65032&from=activity)
-
-> 目前服务器配置比较弱鸡，经常炸机，欢迎大佬赞助。mail to me .
-
-> 也欢迎小伙伴提交自己搭建的地址到issue,如果可以，创办个一起听歌吧联盟，把所有一起听歌吧的地址聚合在一起。分解服务器压力。
-
-如果遇到问题可以在本项目提 issue
+支持的音源：**网易云音乐** 与 **QQ 音乐**（咪咕、酷我/虾米已在代码中移除）。
 
 ## 项目背景
 
-此版本是多房间版，在jusic-serve的基础上[Jusic-serve](https://github.com/JumpAlang/Jusic-serve)
+此版本是多房间版，在 jusic-serve 的基础上演进：[Jusic-serve](https://github.com/JumpAlang/Jusic-serve)
 
-后端: 本项目
+* 后端：本项目
+* 前端：[Jusic-ui](https://github.com/JumpAlang/Jusic-ui/tree/jusic-ui-houses)
+* 小程序：[Jusic-mini](https://github.com/JumpAlang/Jusic_mini)
 
-前端: [Jusic-ui](https://github.com/JumpAlang/Jusic-ui/tree/jusic-ui-houses)
-小程序: [Jusic-mini](https://github.com/JumpAlang/Jusic_mini)
+---
 
-## docker部署
-> 一起听歌吧官方所使用服务器配置,新用户有优惠价100左右：[阿里云ecs_t5_突发型](https://www.aliyun.com/minisite/goods?userCode=ze4tzlf9&share_source=copy_link)
->
-1.只要nodejs音乐api接口
-  请使用<https://hub.docker.com/r/jumpalang/jusic_music_api>查看说明
+# 快速开始
 
-2.只要java后端服务
-  请使用<https://hub.docker.com/r/jumpalang/jusic_serve_houses>查看说明
+## 1. 准备
 
-3.如果想整套部署
+只需要 **Docker** 与 **Docker Compose**（Docker 20.10+ 自带 `docker compose` 子命令）。
 
- 3.1 使用根目录下的 docker-compose.yml，修改参数后执行 `docker-compose up -d`，
-     浏览器访问 <http://localhost:8888>
+```bash
+git clone https://github.com/JumpAlang/Jusic-Serve-Houses.git
+cd Jusic-Serve-Houses
+```
 
-     全部可用参数及默认值见 [.env.example](.env.example)（`java -jar` 启动时同样适用）。几个常改的：
+## 2. 配置
 
-     * `RedisHost` / `MusicApi`：非 docker 部署时填 `localhost`
-     * `APIUSER` / `APIPWD`：接口认证，默认 `admin` / `123456`
-     * `ServerJUrl`：被 @管理员 时的推送地址，**必须修改**，否则消息会发到作者那里
-     * `RoleRootPassword`：聊天输入「root 密码」提权为管理员
+```bash
+cp .env.example .env
+vi .env
+```
 
- 3.2 使用Jonnyan404小伙伴制作的docker
-> 感谢小伙伴制作的docker <https://github.com/Jonnyan404>
+至少要改这几项（详见 [.env.example](.env.example) 里的逐项说明）：
 
-`docker run -d --name music -p 8888:8888 jonnyan404/jusic`
+| 变量 | 说明 |
+|---|---|
+| `QQ` | 你的 QQ 号。灌 QQ 会员 cookie 时，cookie 里的 uin 必须等于这个值，否则不生效 |
+| `APIPWD` | 接口认证密码（用户名固定 `admin`） |
+| `RoleRootPassword` | 管理员提权密码：聊天框输入「root 这个密码」 |
+| `ServerJUrl` | @管理员 的微信推送地址。**必须改成自己的**，否则消息会发到项目作者那里 |
+| `WyAccount` | 网易账号名。它同时是 Redis 里网易 cookie 的存储键名，定了之后不要再改 |
+| `QqCookie` | QQ 音乐会员 cookie，**决定 VIP 歌能否完整播放**，填法见 [灌入音源登录态](#灌入音源登录态重要) |
+| `WyCookie` | 网易云会员 cookie，同上 |
 
-## 安装
+> ⚠️ `.env` 由 docker compose 逐行解析，**注释必须单独成行**。
+> 写成 `HouseSize=128  # 房间数上限` 会把「# 房间数上限」一起当成值传给容器。
 
-1. 克隆项目
+> `RedisHost` 与 `MusicApi` 不用配，compose 已固定指向容器网络内的 `redis` 与 `music-api`。
 
-   ```
-   git clone https://github.com/JumpAlang/Jusic-Serve-Houses.git
-   ```
+## 3. 启动
 
+```bash
+docker compose up -d
+docker compose ps          # 三个服务都应是 Up；jusic-redis 显示 healthy
+```
 
+首次启动约 30 秒（后端 Spring Boot 启动 + Redis 健康检查）。
 
-2. 安装 Redis
+## 4. 访问
 
-   [Redis](https://redis.io/)
+浏览器打开 **<http://localhost:8080>**
 
-3. 安装音乐基础服务
+---
 
-   3.1 网易云音乐：[NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi)
+# 灌入音源登录态（重要）
 
-   3.2 qq音乐:<https://github.com/jsososo/QQMusicApi>
+这一步决定 **VIP 曲目能不能完整播放**。不填也能用，但付费歌曲只会播放 30 秒试听。
 
-   3.3 咪咕音乐：<https://github.com/JumpAlang/MiguMusicApi>
+两个音源的 cookie 都统一填在 `.env` 里，`docker compose up -d` 启动时自动灌入。
+**换 cookie 只需改 `.env` 再 `up -d`，不用 curl 任何接口，容器重建也不会丢。**
 
-   3.4 铜钟forJusic(引入了酷我与虾米，当网易或者qq或者虾米找不到资源时，根据歌手名+歌曲名从酷我和虾米搜索)：<https://github.com/JumpAlang/tongzhongForJusic>
-4. 配置
+## 1. 抓 QQ 音乐 cookie
 
-   **不需要改源码里的 yml**，用环境变量即可。优先级：命令行参数 > `-D` 系统属性 > 环境变量 > 配置文件。
+1. 浏览器登录 <https://y.qq.com>（用你的会员账号）
+2. F12 →「网络 / Network」→ 刷新页面 → 点最上面那条请求
+3. 「请求头 / Request Headers」→ 找到 `Cookie:` 这一行，**复制整行的值**
+   （别用 `document.cookie`，它拿不到 HttpOnly 字段，会缺 `qm_keyst`）
+4. 粘进 `.env`：
 
-   ```
-   # 方式一：.env 文件（推荐，一次配好所有项）
-   cp .env.example .env
-   vi .env            # 至少填 RedisHost 与 MusicApi
+```ini
+QQ=你的QQ号
+QqCookie=粘贴整串 cookie
+```
 
-   # 方式二：启动时直接传参
-   java -jar target/jusic-serve.jar --RedisHost=127.0.0.1 --MusicApi=http://127.0.0.1
-   ```
+⚠️ cookie 里的 `uin` **必须等于** `QQ`。不一致时启动日志会打印 `QqCookie 已忽略`，VIP 依然取不到链接。
 
-   变量清单见 `.env.example`（默认值指向 docker 服务名 `redis` / `jusicMusicApi`，本机裸跑必须覆盖）。
+## 2. 抓网易云 cookie
 
-5. 打包项目
+1. 浏览器登录 <https://music.163.com>（用你的会员账号）
+2. F12 →「网络」→ 刷新页面 → 点最上面那条 HTML 请求
+3. 「请求头 → `Cookie:`」整串复制（**必须含 `MUSIC_U=`**，末尾分号可带可不带）
+4. 粘进 `.env`：
 
-   ```
-   # 项目是使用 maven 构建的，可以用下面的命令把项目打包成 jar 文件
-   > mvn clean package -DskipTests
-   # 如果觉得打包过程太久，那么可以选择下面这条命令跳过打包时的项目测试
-   > mvn clean package -Dmaven.test.skip
-   ```
+```ini
+WyAccount=你的网易账号名
+WyCookie=粘贴整串 cookie
+```
 
-   产物为 `target/jusic-serve.jar`；若要把前端一起打进去，请先按第 7 步构建前端并复制到
-   `src/main/resources/static/`，再执行打包。
+⚠️ `WyAccount` 同时是后端 Redis 里网易 cookie 的存储键名，**定了之后别再改**；
+改了必须重新填一次 `WyCookie`，否则读不到旧登录态。
 
-6. 启动项目
+## 3. 启动并验证
 
-   ```
-   > ./start.sh                          # 自动读取同目录 .env（推荐）
-   > DAEMON=1 ./start.sh                 # 后台启动，日志写入 logs/app.log
-   > java -jar target/jusic-serve.jar    # 或直接启动，配置用 --参数 / -D 传入
-   ```
+```bash
+docker compose up -d
+docker compose logs music-api | grep QqCookie     # 应打印：已从 QqCookie 环境变量注入 QQ 登录态：uin=xxx
+docker compose logs jusic | grep WyCookie         # 应打印：网易 cookie 已从 WyCookie 环境变量灌入
+```
 
-   停止（需先确保 actuator 已开放 shutdown 端点，端口与凭据按实际修改）：`./shutdown.sh`
+验证 QQ 是否生效（返回带 `vkey` 的地址即为成功）：
 
-7. 前端
+```bash
+curl -s "http://localhost:3300/song/urls?id=0039MnYb0qxYhV"
+```
 
-   前端是独立仓库（本地目录 `Jusic-ui/`，Vue 3 + Vuetify 4，详见其中的 `README.md`）。
-   要让 jar 里带上前端，需在打包前构建并复制产物：
+网易没有单曲验证接口，直接播一首 VIP 歌确认能放完整时长即可。
+**cookie 失效时会自动告警**：取歌时若发现返回的是试听片段，后端会记 ERROR 日志
+`⚠️ 网易返回 30 秒试听片段`，并在配置了 `ServerJUrl` 时推一条微信通知（同一状态每小时最多一次）。
+看到告警就重抓一次 cookie 填回 `.env`。
 
-   ```
-   cd Jusic-ui
-   npm install && npm run build
-   rm -rf ../src/main/resources/static/{index.html,assets,js,css,img}
-   cp -r dist/* ../src/main/resources/static/
-   cd .. && mvn clean package -DskipTests
-   ```
+## 说明
 
-   不想每次重新打包时，可让后端读外部目录（改前端只需覆盖该目录并刷新页面）：
+* QQ 登录态另有一份落盘缓存在 `qq-data` 数据卷、网易的落在 Redis 的 `jusic_retain_key_*`。
+  **`.env` 里填了就以 `.env` 为准**（每次启动覆盖），留空才沿用缓存里的旧值。
+* 除 `.env` 之外也保留一次性灌入接口，仅用于调试：
+  * QQ：`curl -X POST "http://localhost:3300/user/setCookie" --data-urlencode "data=<cookie>"`
+  * 网易（需 Basic 认证，用户名固定 `admin`）：
+    `curl -u admin:你的APIPWD -X POST "http://localhost:8080/netease/setCookiePost" -H "Content-Type: application/json" -d '{"cookie":"<cookie>"}'`
 
-   ```
-   java -jar target/jusic-serve.jar \
-     --spring.resources.static-locations=file:/path/to/webroot/,classpath:/static/
-   ```
+---
 
-8. 重构/开发期：一键构建与重启
+# 使用
 
-   改完代码不必手工重跑「npm build → 复制产物 → mvn package → kill → 启动」，
-   仓库根目录提供了两个脚本：
+在聊天窗口发送指令即可。
 
-   | 场景 | 命令 |
-   |---|---|
-   | 改前端 | `./deploy.sh --web`（build + 同步到 `webroot/`，**不重打 jar**，刷新浏览器即可）|
-   | 改后端 | `./deploy.sh --backend`（mvn package + 重启）|
-   | 改 `.env` | `./deploy.sh --restart` |
-   | 全量 | `./deploy.sh` |
-   | 预演 | `./deploy.sh --dry-run` |
-   | 后端热重载 | `./dev.sh`，另开终端 `./dev.sh compile` 触发自动重启 |
-
-   要点：
-   - 静态资源走外置目录 `webroot/`（由 `StaticLocations` 环境变量注入，默认值与改动前
-     完全一致），所以改前端不再需要重打 43MB 的 jar
-   - 进程号在 `logs/app.pid`，控制台日志 `logs/console.log`；停止时先发 SIGTERM 优雅停机，
-     超时才 `kill -9`
-   - `./dev.sh` 用的是 `mvn spring-boot:run` + devtools：devtools 在 `java -jar` 跑 fat jar 时
-     会被自动禁用，因此生产启动不受影响
-   - 远程生产发布方案与「什么时候才值得上 CI/CD」，见 `.review/部署与联调指南.md` 第 9 节
-
-## 使用
-
-在聊天窗口发送指令即可，**普通用户**：
+**普通用户**
 
 | 指令 | 说明 |
 |---|---|
@@ -163,7 +145,7 @@
 | `设置昵称 名字` | 修改自己的显示昵称（仅当前客户端） |
 | `删除音乐 歌曲名` | 删除自己点错的歌 |
 
-**管理员**（先用 `root 密码` 或 `admin 密码` 提权，密码见 `RoleRootPassword`）：
+**管理员**（先用 `root 密码` 提权，密码见 `RoleRootPassword`）
 
 | 指令 | 说明 |
 |---|---|
@@ -180,18 +162,97 @@
 
 完整指令共 44 条，见前端 `src/composables/useSocket.ts` 的 `sendHandler`。
 
+---
+
+# 日志与排障
+
+## 日志位置
+
+| 文件 | 内容 |
+|---|---|
+| `logs/common-all.log` | 全量业务日志（INFO 以上），带类名、方法名与行号，**排查首选** |
+| `logs/common-error.log` | 仅 ERROR |
+| `docker compose logs -f jusic` | 容器标准输出（含框架启动信息） |
+| `docker compose logs -f music-api` | 两个音源服务的输出 |
+
+日志目录已挂载到宿主机，可直接 `tail -f logs/common-all.log`。
+
+## 常见问题
+
+| 现象 | 原因与处理 |
+|---|---|
+| 页面能打开但一点歌就失败 | 先看 `logs/common-error.log`。多为音乐 API 未就绪或音源网络异常 |
+| 歌能播但只有 30 秒 | 网易 cookie 失效。日志里会有「网易返回 30 秒试听片段」的 ERROR |
+| QQ 曲目取不到播放地址 | cookie 未灌，或 cookie 里的 uin 与 `.env` 的 `QQ` 不一致 |
+| 日志里 `刷新未返回新 cookie` | 网易登录态可能已过期，重新灌一次 cookie |
+| 后端报 `Unable to connect to redis` | `redis` 容器没起来，看 `docker compose ps` |
+| 修改 `.env` 后不生效 | 需要 `docker compose up -d`（会重建受影响的服务） |
+
+---
+
+# 从源码构建
+
+## 前端 → 后端 jar
+
+前端是独立仓库（本地目录 `Jusic-ui/`，Vue 3 + Vuetify）。它的产物需要先复制进后端资源目录，
+再打包 jar：
+
+```bash
+cd Jusic-ui
+npm install && npm run build
+rm -rf ../src/main/resources/static/assets ../src/main/resources/static/index.html
+cp -r dist/* ../src/main/resources/static/
+
+cd ..
+mvn -Dmaven.repo.local=.m2-repo clean package -DskipTests
+# 产物：target/jusic-serve.jar
+```
+
+## 后端镜像（含前端）
+
+```bash
+docker build -t jusic-serve-houses:latest .
+docker compose up -d jusic
+```
+
+## 音乐 API 镜像（网易 + QQ 二合一）
+
+构建上下文在 `.docker-build/`，需要先把两个音源项目的源码放进去：
+
+```bash
+git clone --depth 1 https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced.git .docker-build/netease
+git clone --depth 1 https://github.com/jsososo/QQMusicApi.git .docker-build/qq
+docker build -t jusic-music-api:2in1 .docker-build
+```
+
+镜像用 supervisord 在一个容器内托管两个 Node 进程（网易 `:3000`、QQ `:3300`），
+两个项目的依赖安装方式不同（网易用 pnpm + 自带 lockfile，QQ 用 yarn 1.x），
+具体坑位与处理都写在 `.docker-build/Dockerfile` 的注释里。
+
+## 推送镜像到 Docker Hub
+
+仓库根目录的 `push-images.sh` 可一键打标签并推送：
+
+```bash
+docker login
+./push-images.sh <你的DockerHub用户名>
+```
+
+推送后把 `docker-compose.yml` 里的 `image:` 换成远端地址即可供他人直接拉取。
+
+---
+
 ## 在线预览
 
 Jusic：[Jusic 点歌台](http://music.alang.run)
 
 ## 打赏请我喝奶茶
+
 [打赏](http://www.alang.run/sponsor)
 
 ## 相关项目
 
 * JusicServe:[JusicServe](https://github.com/hanhuoer/Jusic-serve)
 * Jusic-ui:[Jusic-ui](https://github.com/hanhuoer/Jusic-ui)
-* 网易云音乐api:[NeteaseMusic](https://github.com/jsososo/NeteaseMusic)
-* qq音乐api:[qqMusicApi](https://github.com/jsososo/QQMusicApi)
-* 咪咕音乐api:[miguMusicApi](https://github.com/jsososo/MiguMusicApi)
-
+* 网易云音乐 api:[NeteaseCloudMusicApiEnhanced/api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)
+* QQ 音乐 api:[jsososo/QQMusicApi](https://github.com/jsososo/QQMusicApi)

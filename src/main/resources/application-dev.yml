@@ -43,8 +43,6 @@ jusic:
   ai-url: 'https://studio-api.suno.ai/api/trending/metaplaylist'
   music-serve-domain: ${music-api}:3000 #'http://www.alang.run:8888'
   music-serve-domain-qq: ${music-api}:3300 #'http://www.alang.run:3300'
-  music-serve-domain-mg: ${music-api}:3400 #'http://www.alang.run:3400'#
-  music-serve-domain-kw-xm: ${music-api}:8081 #'http://www.alang.run:8081'#'
   mail-send-from: ${MailFrom:xx@139.com}
   mail-send-to: ${MailTo:1040927107@qq.com}
   serverJUrl: ${ServerJUrl:https://sc.ftqq.com/SCU64668T909ada7955daadfb64d5e7652b93fb135dad06e659369.send}
@@ -57,6 +55,7 @@ jusic:
   role_root_password: ${RoleRootPassword:xx}
   wy_account: ${WyAccount:xxx@163.com}
   wy_password: ${WyPassword:xxx}
+  wy_cookie: ${WyCookie:}
   playlist_size: ${PlaylistSize:23}
   foreverlist_size: ${$ForeverlistSize:66}
   qq_uin: ${QqUin:1040927107}

@@ -1,0 +1,22 @@
+# 构建上下文瘦身：这些都不进镜像
+# 注意 target/ 不能整体排除——target/jusic-serve.jar 是镜像的唯一输入，
+# 而前端产物已经打进这个 jar 的 BOOT-INF/classes/static/ 里了。
+.git
+.review
+.m2-repo
+.npm-cache
+.docker-build
+Jusic-ui
+Jusic-ui-v3
+logs
+nohup.out
+*.bak
+*.bak2
+*.bak3
+target/classes
+target/test-classes
+target/generated-sources
+target/generated-test-sources
+target/maven-archiver
+target/maven-status
+target/*.original

@@ -86,12 +86,6 @@ public class MusicController {
             }else{
                 pick = musicService.getQQMusic(music);
             }
-        }else if("mg".equals(music.getSource())){
-            if(music.getId() != null){
-                pick = musicService.getMGMusicById(music.getId());
-            }else{
-                pick = musicService.getMGMusic(music.getName());
-            }
         }else if("ai".equals(music.getSource())){
             if(StringUtils.isQQMusicId(music.getId())){
                 pick = musicService.getQQMusicById(music.getId(),music.getQuality());

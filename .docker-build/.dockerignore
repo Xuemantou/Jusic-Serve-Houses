@@ -1,0 +1,9 @@
+**/.git
+**/.github
+**/node_modules
+**/test
+**/tests
+**/docs
+**/examples
+**/module_example
+*.md

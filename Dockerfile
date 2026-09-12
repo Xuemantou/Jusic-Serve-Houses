@@ -1,16 +1,24 @@
-FROM java:8
-EXPOSE 8888
+# 本镜像同时承载后端与前端：前端（Jusic-ui）的构建产物已打进 jar 的
+# BOOT-INF/classes/static/，由 Spring Boot 同源提供，因此不需要单独的前端镜像。
+#
+# 构建前先产出 jar：
+#   cd Jusic-ui && npm run build && rm -rf ../src/main/resources/static/assets ../src/main/resources/static/index.html \
+#     && cp -r dist/* ../src/main/resources/static/
+#   cd .. && mvn -Dmaven.repo.local=.m2-repo clean package -DskipTests
+#   docker build -t jusic-serve-houses:latest .
+#
+# 运行请用 docker compose（见 docker-compose.yml），
+# 它会一并拉起 redis 与 music-api，并把 RedisHost/MusicApi 指向容器网络地址。
+FROM eclipse-temurin:17-jre-jammy
+
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 WORKDIR /app
-ADD target/jusic-serve.jar ./jusic-serve.jar
+COPY target/jusic-serve.jar ./jusic-serve.jar
 
-ENV APIUSER=admin APIPWD=123456 RedisHost=redis MusicApi=http://jusicMusicApi
-ENV MusicExpireTime=1200000 ReTryCount=1 VoteRate=0.3 WyTopUrl=3778678
-ENV ServerJUrl=https://sc.ftqq.com/SCU64668T909ada7955daadfb64d5e7652b93fb135dad06e659369.send
-ENV IpHouse=3 HouseSize=32
-ENV MiniId=wx693312f83f255cf3 MiniSecrect=xxx
-ENV RoleRootPassword=654321
-ENV WyAccount=xxxx@163.com WyPassword=xxx
-ENV PlaylistSize=23 ForeverlistSize=66
-ENV QqUin=1040927107 QqMusicKey=Q_H_L_63k3NWYfBRq1KV0rBZ4ySa7vYK6XS5803Q23v35s4abc0rela9BzP6jBXv5Fgk9hsk4FLXXXXXX QqMusicGuid=114514 QqCdnAddr=http://ws.stream.qqmusic.qq.com/ QqRefreshInterval=86000000
+# logback 会写 logs/common-all.log 与 logs/common-error.log，先建好目录便于挂载
+RUN mkdir -p /app/logs
 
-ENTRYPOINT java -jar -DAPIUSER=$APIUSER -DAPIPWD=$APIPWD -DRedisHost="$RedisHost" -DMusicApi="$MusicApi" -DMusicExpireTime=$MusicExpireTime -DReTryCount=$ReTryCount -DVoteRate=$VoteRate -DWyTopUrl=$WyTopUrl -DServerJUrl="$ServerJUrl" -DIpHouse=$IpHouse -DHouseSize=$HouseSize -DMiniId=$MiniId -DMiniSecrect=$MiniSecrect -DRoleRootPassword=$RoleRootPassword -DWyAccount=$WyAccount -DWyPassword=$WyPassword -DPlaylistSize=$PlaylistSize -DForeverlistSize=$ForeverlistSize -DQqUin=$QqUin -DQqMusicKey=$QqMusicKey -DQqMusicGuid=$QqMusicGuid -DQqCdnAddr=$QqCdnAddr -DQqRefreshInterval=$QqRefreshInterval ./jusic-serve.jar
+EXPOSE 8888
+ENTRYPOINT ["java", "-jar", "/app/jusic-serve.jar"]

@@ -10,7 +10,6 @@ import com.scoder.jusic.model.*;
 import com.scoder.jusic.repository.*;
 import com.scoder.jusic.service.MailService;
 import com.scoder.jusic.service.MusicService;
-import com.scoder.jusic.util.KWTrackUrlReq;
 import com.scoder.jusic.util.NeteaseMusicLoginRefresher;
 import com.scoder.jusic.util.QQTrackUrlReq2;
 import com.scoder.jusic.util.StringUtils;
@@ -185,18 +184,9 @@ public class MusicServiceImpl implements MusicService {
         if (!"ai".equals(result.getSource()) && result.getPickTime() + jusicProperties.getMusicExpireTime() <= System.currentTimeMillis()) {
             String musicUrl;
             if("qq".equals(result.getSource())){
-                // 优先走 QQ 官方取链（Node API /song/urls），失败则由下方统一兜底到酷我
                 musicUrl = this.getQQMusicUrl(result.getId());
-                if(musicUrl == null){
-                    musicUrl = this.getKwXmUrlIterator(result.getName()+" "+result.getArtist(),result.getQuality());
-                }
-            }else if("mg".equals(result.getSource())){
-                musicUrl = this.getMGMusicUrl(result.getId(),result.getName());
             }else{
                 musicUrl = this.getMusicUrl(result.getId(),result.getQuality());
-            }
-            if(musicUrl == null){
-                musicUrl = this.getKwXmUrlIterator(result.getName()+" "+result.getArtist(),result.getQuality());
             }
             if (Objects.nonNull(musicUrl)) {
                 result.setUrl(musicUrl);
@@ -361,9 +351,10 @@ public class MusicServiceImpl implements MusicService {
 
     @Override
     public void setNetEaseCookie(String cookie) {
-        String tempCookie = ReUtil.get("MUSIC_U=(.*?);", cookie, 0);
-        if(!org.springframework.util.StringUtils.isEmpty(tempCookie)){
-            NETEASE_COOKIE = tempCookie;
+        // 匹配到分号或串尾都算：手工填的 cookie 常常不带结尾分号
+        String musicU = ReUtil.get("MUSIC_U=[^;]*", cookie, 0);
+        if(!org.springframework.util.StringUtils.isEmpty(musicU)){
+            NETEASE_COOKIE = musicU.endsWith(";") ? musicU : musicU + ";";
         }
         RetainKey retainKeyNew = new RetainKey();
         retainKeyNew.setIsUsed(true);
@@ -589,7 +580,6 @@ public class MusicServiceImpl implements MusicService {
 //
 //                        if(url == null){
 //                            url = getQQMusicUrl(music.getId(),pick.g)
-//                            url = this.getKwXmUrlIterator(music.getName()+" "+music.getArtist());
 //                        }
 //                        music.setUrl(url);
 //
@@ -615,46 +605,6 @@ public class MusicServiceImpl implements MusicService {
         }
 
         return music;
-    }
-
-    private String getKwXmUrlIterator(String keyword,String quality){
-        String result = this.getKwUrl(keyword,quality);//this.getKwXmUrl(keyword,"kuwo");
-//        if(result == null || result.indexOf("http") == -1){
-//            result = this.getKwXmUrl(keyword,"xiami");
-//        }
-        return result;
-    }
-
-    private String getKwXmUrl(String keyword,String provider) {
-        HttpResponse<String> response = null;
-        try {
-                response = Unirest.get(jusicProperties.getMusicServeDomainKwXm() + "/api/searchsingle").queryString("provider",provider).queryString("keyword",keyword).asString();
-
-                if (response.getStatus() != 200) {
-                } else {
-                    JSONObject jsonObject = JSONObject.parseObject(response.getBody());
-//                    log.info("获取酷狗虾米音乐结果：{}", jsonObject);
-                    if (jsonObject.getString("code").equals("20000")) {
-                        String result = jsonObject.getString("data");
-                        return result;
-                    }
-                }
-            } catch (Exception e) {
-                log.error("酷狗虾米音乐获取异常, 请检查音乐服务; Exception: [{}]", e.getMessage());
-            }
-
-        return null;
-    }
-
-    private String getKwUrl(String keyword,String quality) {
-        KWTrackUrlReq kwTrackUrlReq = new KWTrackUrlReq();
-        try {
-            return kwTrackUrlReq.getMusicUrlByKeyWord(keyword,quality);
-
-        }catch (Exception e){
-            log.error("酷我音乐获取异常, 请检查音乐服务; Exception: [{}]", e.getMessage());
-        }
-        return null;
     }
 
     private Music getWYMusicByName(Music pick) {
@@ -781,79 +731,6 @@ public class MusicServiceImpl implements MusicService {
         return music;
     }
 
-    private Music getMGMusicByName(String keyword) {
-        HttpResponse<String> response = null;
-        Music music = null;
-
-        Integer failCount = 0;
-
-        while (failCount < jusicProperties.getRetryCount()) {
-            try {
-                response = Unirest.post(jusicProperties.getMusicServeDomainMg() + "/song/find").queryString("keyword",keyword)
-                        .asString();
-
-                if (response.getStatus() != 200) {
-                    failCount++;
-                } else {
-                    JSONObject jsonObject = JSONObject.parseObject(response.getBody());
-//                    log.info("获取音乐结果：{}", jsonObject);
-                    if (jsonObject.get("result").equals(100)) {
-                        JSONObject data = jsonObject.getJSONObject("data");
-                        music = new Music();
-                        music.setSource("mg");
-                        String id = data.getString("cid");
-                        music.setId(id);
-                        String lyrics = getMGLyrics(id);
-                        music.setLyric(lyrics);
-                        String durationStr = data.getString("duration");
-                        if(durationStr != null && !"".equals(durationStr)){
-                            music.setDuration(StringUtils.strToMillisSecond(durationStr));
-                        }else{
-                            music.setDuration(StringUtils.getLyricsDuration(lyrics)+20000);
-                        }
-                        String name = data.getString("name");
-                        music.setName(name);
-                        JSONArray singerArray = data.getJSONArray("artists");
-                        int singerSize = singerArray.size();
-                        String singerNames = "";
-                        for(int j = 0; j < singerSize; j++){
-                            singerNames += singerArray.getJSONObject(j).getString("name")+"&";
-                        }
-                        if(singerNames.endsWith("&")){
-                            singerNames = singerNames.substring(0,singerNames.length()-1);
-                        }
-                        music.setArtist(singerNames);
-                        String url = data.getString("128k");
-                        if(url == null){
-                            url = this.getKwXmUrlIterator(music.getName()+" "+music.getArtist(),null);
-                        }
-                        music.setUrl(url);
-
-                        Album album = new Album();
-                        JSONObject albumObject = data.getJSONObject("album");
-                        Integer albumid = albumObject.getInteger("id");
-                        album.setId(albumid);
-                        String albumname = albumObject.getString("name");
-                        album.setName(albumname);
-                        album.setArtist(singerNames);
-                        String picUrl = albumObject.getString("picUrl");
-                        album.setPictureUrl(picUrl);
-                        music.setAlbum(album);
-                        music.setPictureUrl(picUrl);
-                        return music;
-                    }else{
-                        return null;
-                    }
-                }
-            } catch (Exception e) {
-                failCount++;
-                log.error("mg音乐获取异常, 请检查音乐服务; Exception: [{}]", e.getMessage());
-            }
-        }
-
-        return music;
-    }
-
     private String getQQLyrics(String id){
         HttpResponse<String> response = null;
         Integer failCount = 0;
@@ -917,36 +794,6 @@ public class MusicServiceImpl implements MusicService {
         return "";
     }
 
-    private String getMGLyrics(String id){
-        HttpResponse<String> response = null;
-        Integer failCount = 0;
-
-        while (failCount < jusicProperties.getRetryCount()) {
-            try {
-//                Unirest.setTimeouts(10000,15000);
-                response = Unirest.get(jusicProperties.getMusicServeDomainMg() + "/lyric?cid=" + id)
-                        .asString();
-
-                if (response.getStatus() != 200) {
-                    failCount++;
-                } else {
-                    JSONObject jsonObject = JSONObject.parseObject(response.getBody());
-//                    log.info("获取音乐结果：{}", jsonObject);
-                    if (jsonObject.get("result").equals(100)) {
-                        return jsonObject.getString("data");
-                    }else{
-                        return null;
-                    }
-                }
-            } catch (Exception e) {
-                failCount++;
-                log.error("qq音乐获取歌词异常, 请检查音乐服务; Exception: [{}]", e.getMessage());
-            }
-        }
-
-        return "";
-    }
-
     @Override
     public Music getQQMusicById(String id,String quality) {
         HttpResponse<String> response = null;
@@ -1000,10 +847,6 @@ public class MusicServiceImpl implements MusicService {
 
                         // 优先走 QQ 官方取链（Node API /song/urls，依赖容器内有效的 QQ 会员 cookie）
                         String url = this.getQQMusicUrl(id);
-                        // 取不到（cookie 失效 / 该曲无权限 / 容器网络异常）时，按原逻辑降级到酷我
-                        if(url == null){
-                            url = this.getKwXmUrlIterator(music.getName()+" "+music.getArtist(),quality);
-                        }
                         if(url == null){
                             Music temp = new Music();
                             temp.setName(music.getName()+" "+music.getArtist());
@@ -1077,9 +920,6 @@ public class MusicServiceImpl implements MusicService {
 
                         long duration = song.getLong("dt");
                         if(url == null){
-                            url = this.getKwXmUrlIterator(music.getName()+" "+music.getArtist(),quality);
-                        }
-                        if(url == null){
                             failCount++;
                             music = null;
                             continue;
@@ -1147,7 +987,6 @@ public class MusicServiceImpl implements MusicService {
 
                         long duration = song.getLong("duration");
 //                        if(url == null){
-//                            url = this.getKwXmUrlIterator(music.getArtist()+" "+music.getName());
 //                        }
                         music.setUrl(url);
                         music.setDuration(duration);
@@ -1252,91 +1091,6 @@ public class MusicServiceImpl implements MusicService {
         }
 
         return buildJSONArray;
-    }
-
-    @Override
-    public Music getMGMusic(String keyword) {
-        Music pick = null;
-        if(keyword != null){
-            if(StringUtils.isMGMusicId(keyword)){
-                pick = this.getMGMusicById(keyword);
-            }else{
-                pick = this.getMGMusicByName(keyword);
-            }
-        }
-        return pick;    }
-
-    @Override
-    public Music getMGMusicById(String id) {
-        HttpResponse<String> response = null;
-        Music music = null;
-
-        Integer failCount = 0;
-
-        while (failCount < jusicProperties.getRetryCount()) {
-            try {
-                response = Unirest.get(jusicProperties.getMusicServeDomainMg() + "/song?id=" + id+"&cid="+id)
-                        .asString();
-
-                if (response.getStatus() != 200) {
-                    failCount++;
-                } else {
-                    JSONObject jsonObject = JSONObject.parseObject(response.getBody());
-//                    log.info("获取音乐结果：{}", jsonObject);
-                    if (jsonObject.get("result").equals(100)) {
-                        JSONObject data = jsonObject.getJSONObject("data");
-                        music = new Music();
-                        music.setSource("mg");
-                        music.setId(id);
-                        String lyrics = getMGLyrics(id);
-                        music.setLyric(lyrics);
-                        String durationStr = data.getString("duration");
-                        if(durationStr != null && !"".equals(durationStr)){
-                            music.setDuration(StringUtils.strToMillisSecond(durationStr));
-                        }else{
-                            music.setDuration(StringUtils.getLyricsDuration(lyrics)+20000);
-                        }
-                        String name = data.getString("name");
-                        music.setName(name);
-                        JSONArray singerArray = data.getJSONArray("artists");
-                        int singerSize = singerArray.size();
-                        String singerNames = "";
-                        for(int j = 0; j < singerSize; j++){
-                            singerNames += singerArray.getJSONObject(j).getString("name")+"&";
-                        }
-                        if(singerNames.endsWith("&")){
-                            singerNames = singerNames.substring(0,singerNames.length()-1);
-                        }
-                        music.setArtist(singerNames);
-                        String url = data.getString("128k");
-                        if(url == null){
-                            url = this.getKwXmUrlIterator(music.getName()+" "+music.getArtist(),null);
-                        }
-                        music.setUrl(url);
-
-                        Album album = new Album();
-                        JSONObject albumObject = data.getJSONObject("album");
-                        Integer albumid = albumObject.getInteger("id");
-                        album.setId(albumid);
-                        String albumname = albumObject.getString("name");
-                        album.setName(albumname);
-                        album.setArtist(singerNames);
-                        String picUrl = data.getString("picUrl");
-                        album.setPictureUrl(picUrl);
-                        music.setAlbum(album);
-                        music.setPictureUrl(picUrl);
-                        return music;
-                    }else{
-                        return null;
-                    }
-                }
-            } catch (Exception e) {
-                failCount++;
-                log.error("音乐获取异常, 请检查音乐服务; Exception: [{}]", e.getMessage());
-            }
-        }
-
-        return music;
     }
 
     @Override
@@ -1449,39 +1203,6 @@ public class MusicServiceImpl implements MusicService {
     }
 
     @Override
-    public String getMGMusicUrl(String musicId, String musicName) {
-        HttpResponse<String> response = null;
-        String result = null;
-
-        Integer failCount = 0;
-
-        while (failCount < jusicProperties.getRetryCount()) {
-            try {
-                response = Unirest.get(jusicProperties.getMusicServeDomainMg() + "/song/url?id="+musicId+"&cid="+musicId+"&songName="+ URLEncoder.encode(musicName))
-                        .asString();
-
-                if (response.getStatus() != 200) {
-                    failCount++;
-                } else {
-                    JSONObject jsonObject = JSONObject.parseObject(response.getBody());
-//                    log.info("获取音乐链接结果：{}", jsonObject);
-                    if (jsonObject.get("result").equals(100)) {
-                        result = jsonObject.getJSONObject("data").getString("128k");
-                        break;
-                    }else{
-                        return null;
-                    }
-                }
-            } catch (Exception e) {
-                failCount++;
-                log.error("qq音乐链接获取异常, 请检查音乐服务; Exception: [{}]", e.getMessage());
-            }
-        }
-
-        return result;
-    }
-
-    @Override
     public boolean deletePickMusic(Music music,String houseId) {
         List<Music> pickMusicList = musicPickRepository.getPickMusicList(houseId);
         boolean isDeleted = false;
@@ -1578,8 +1299,6 @@ public class MusicServiceImpl implements MusicService {
             }else{
                 return searchQQ(music,hulkPage);
             }
-        }else if(music.getSource().equals("mg")){
-            return searchMG(music,hulkPage);
         }else if(music.getSource().equals("ai")){
             return searchAI(music,hulkPage);
         }if(music.getSource().equals("wydt")){
@@ -2665,72 +2384,6 @@ public class MusicServiceImpl implements MusicService {
             hulkPage.setTotalSize(0);
             hulkPage.setData(new Object[]{});
             return hulkPage;
-        }
-        return hulkPage;
-    }
-    private HulkPage searchMG(Music music,HulkPage hulkPage) {
-        StringBuilder url = new StringBuilder()
-                .append(jusicProperties.getMusicServeDomainMg())
-                .append("/search");
-        HttpResponse<String> response = null;
-        try {
-            response = Unirest.post(url.toString()).queryString("keyword",music.getName()).queryString("pageNo",hulkPage.getPageIndex()).queryString("pageSize",hulkPage.getPageSize())
-                    .asString();
-            JSONObject responseJsonObject = JSONObject.parseObject(response.getBody());
-            if (responseJsonObject.getInteger("result") == 100) {
-                JSONArray data = responseJsonObject.getJSONObject("data").getJSONArray("list");
-                int size = data.size();
-                JSONArray buildJSONArray = new JSONArray();
-                for(int i = 0; i < size; i++){
-                    JSONObject jsonObject = data.getJSONObject(i);
-                    JSONObject buildJSONObject = new JSONObject();
-                    JSONArray singerArray = jsonObject.getJSONArray("artists");
-                    int singerSize = singerArray.size();
-                    String singerNames = "";
-                    for(int j = 0; j < singerSize; j++){
-                        singerNames += singerArray.getJSONObject(j).getString("name")+"&";
-                    }
-                    if(singerNames.endsWith("&")){
-                        singerNames = singerNames.substring(0,singerNames.length()-1);
-                    }
-                    buildJSONObject.put("artist",singerNames);
-                    String songname = jsonObject.getString("name");
-                    buildJSONObject.put("name",songname);
-                    String songmid = jsonObject.getString("cid");
-                    buildJSONObject.put("id",songmid);
-                    String interval = jsonObject.getString("duration");
-                    if(interval != null){
-                        buildJSONObject.put("duration",StringUtils.strToMillisSecond(interval));
-                    }else{
-                        buildJSONObject.put("duration",null);
-                    }
-                    JSONObject privilege = new JSONObject();
-                    privilege.put("st",1);
-                    privilege.put("fl",1);
-                    buildJSONObject.put("privilege",privilege);
-
-                    JSONObject album = new JSONObject();
-                    JSONObject albumObject = jsonObject.getJSONObject("album");
-                    String albumid = albumObject.getString("id");
-                    String picUrl = albumObject.getString("picUrl");
-                    String albumname = albumObject.getString("name");
-                    buildJSONObject.put("picture_url",picUrl);
-                    album.put("picture_url",picUrl);
-                    album.put("id",albumid);
-                    album.put("name",albumname);
-                    buildJSONObject.put("album",album);
-                    buildJSONArray.add(buildJSONObject);
-                }
-                Integer count = responseJsonObject.getJSONObject("data").getInteger("total");
-                List list = JSONObject.parseObject(JSONObject.toJSONString(buildJSONArray), List.class);
-                hulkPage.setData(list);
-                hulkPage.setTotalSize(count);
-            } else {
-                log.info("mg音乐搜索接口异常, 请检查音乐服务");
-                return null;
-            }
-        } catch (Exception e) {
-            log.error("音乐搜索接口异常, 请检查音乐服务; Exception: [{}]", e.getMessage());
         }
         return hulkPage;
     }

@@ -99,14 +99,6 @@ public class StringUtils {
         return result;
     }
 
-    public static boolean isMGMusicId(String id){
-        String regEx="^[a-zA-Z0-9]{11}$";
-        Pattern p= Pattern.compile(regEx);
-        Matcher m=p.matcher(id);
-        boolean result=m.find();
-        return result;
-    }
-
     public static boolean isPlayListIds(String id){
         String regEx="^[,\\s，]*\\d+([,\\s，]+\\d*[,\\s，]*)*$";
         Pattern p= Pattern.compile(regEx);

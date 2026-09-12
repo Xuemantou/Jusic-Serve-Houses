@@ -85,10 +85,6 @@ public interface MusicService {
 
     Music getQQMusicById(String id,String quality);
 
-    Music getMGMusic(String keyword);
-
-    Music getMGMusicById(String id);
-
     Music getWYDTMusicById(String id,String quality);
 
     /**
@@ -100,8 +96,6 @@ public interface MusicService {
     String getMusicUrl(String musicId,String quality);
 
     String getQQMusicUrl(String musicId);
-
-    String getMGMusicUrl(String musicId,String musicName);
 
     /**
      * 删除音乐

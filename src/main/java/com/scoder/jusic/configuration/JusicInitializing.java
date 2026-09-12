@@ -84,6 +84,11 @@ public class JusicInitializing implements InitializingBean {
         this.initDefaultMusicId();
         houseContainer.initialize(houses);
 //        musicService.netEaseAutoLogin();
+        // 配了 WyCookie 就用它（换 cookie 只需改 .env），否则回落到 Redis 里的旧登录态
+        if (org.springframework.util.StringUtils.hasText(jusicProperties.getWyCookie())) {
+            musicService.setNetEaseCookie(jusicProperties.getWyCookie());
+            log.info("网易 cookie 已从 WyCookie 环境变量灌入");
+        }
         musicService.neteaseRefreshCookie();
         log.info("初始化工作完成");
 //        configService.setQqMusicCookieToProperties();

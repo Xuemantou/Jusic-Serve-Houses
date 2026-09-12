@@ -128,8 +128,6 @@ public class JusicProperties {
      */
     private String musicServeDomain = "http://localhost";
     private String musicServeDomainQq = "http://localhost";
-    private String musicServeDomainMg = "http://localhost";
-    private String musicServeDomainKwXm = "http://localhost";
 
     /**
      * mail send from
@@ -158,6 +156,8 @@ public class JusicProperties {
     private String miniSecrect = "";
     private String wyAccount = "";
     private String wyPassword = "";
+    // 网易云会员 cookie（含 MUSIC_U），配置后启动时自动灌入；留空则沿用 Redis 里的旧登录态
+    private String wyCookie = "";
     private Integer playlistSize = 3;
     private Integer foreverlistSize = 33;
     private Boolean listCircleModel = false;

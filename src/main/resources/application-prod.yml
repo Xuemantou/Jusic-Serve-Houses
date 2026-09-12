@@ -1,6 +1,6 @@
 spring:
-  # 静态资源位置。默认值与改动前完全一致（jar 内 classpath:/static/）。
-  # 重构期改前端时不必重打 jar：由 deploy.sh 注入外部目录即可
+  # 静态资源位置。前端产物已经打进 jar 的 classpath:/static/，由后端同源提供。
+  # 如需从外部目录提供前端（改前端不必重打 jar），用环境变量覆盖：
   #   StaticLocations=file:/abs/path/webroot/,classpath:/static/
   # 外部目录在前 → 优先命中；classpath 在后 → 兜底。两者都写才完整。
   resources:
@@ -50,8 +50,6 @@ jusic:
   ai-url: 'https://studio-api.suno.ai/api/trending/metaplaylist'
   music-serve-domain: ${music-api}:3000 #'http://www.alang.run:8888'
   music-serve-domain-qq: ${music-api}:3300 #'http://www.alang.run:3300'
-  music-serve-domain-mg: ${music-api}:3400 #'http://www.alang.run:3400'#
-  music-serve-domain-kw-xm: ${music-api}:8081 #'http://www.alang.run:8081'#'
   mail-send-from: ${MailFrom:xxx@139.com}
   mail-send-to: ${MailTo:1040927107@qq.com}
   serverJUrl: ${ServerJUrl:https://sc.ftqq.com/SCU64668T909ada7955daadfb64d5e7652b93fb135dad06e659369.send}
@@ -64,6 +62,7 @@ jusic:
   role_root_password: ${RoleRootPassword:xx}
   wy_account: ${WyAccount:a01lang@163.com}
   wy_password: ${WyPassword:xxx}
+  wy_cookie: ${WyCookie:}
   playlist_size: ${PlaylistSize:23}
   foreverlist_size: ${$ForeverlistSize:128}
   qq_uin: ${QqUin:1040927107}
