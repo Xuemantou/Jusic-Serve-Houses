@@ -232,7 +232,11 @@ public class SessionServiceImpl implements SessionService {
         }
         payload.append("\n")
                 .append("\n")
-                .append(jsonString);
+                .append(jsonString)
+                // STOMP 帧必须以 NULL 结尾。缺了它，客户端按 content-length 读完 body 后
+                // 会把下一帧的首字节当终止符吃掉（CONNECTED → ONNECTED），连接永远建不起来；
+                // 这个错位只在 CONNECTED 帧落后于本帧时暴露，走 Cloudflare Tunnel 时正是如此。
+                .append('\0');
         return payload.toString();
     }
 

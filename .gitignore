@@ -42,6 +42,10 @@ build/
 /.npm-cache/
 /nohup.out
 
+### 本地 Android 构建工具链与 Gradle 缓存（体积大，勿提交）###
+/.android-sdk/
+/.gradle/
+
 ### 外置静态资源目录（deploy.sh --web 生成，改前端不用重打 jar）###
 /webroot/
 
