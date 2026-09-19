@@ -607,6 +607,37 @@ public class MusicServiceImpl implements MusicService {
         return music;
     }
 
+    /**
+     * 从网易云搜索结果里挑最像原唱的一条。
+     *
+     * 调用方给的关键词可能是「歌名 歌手」（QQ 取链失败退到网易云时就是这种写法），
+     * 但网易云 limit=1 的头条经常是翻唱 —— 所以多取几条，优先选歌手名对得上的那条。
+     */
+    private JSONObject matchOriginSong(JSONArray songs, String keyword) {
+        JSONObject first = songs.getJSONObject(0);
+        String[] words = keyword.trim().split("\\s+");
+        if (words.length < 2) {
+            return first;
+        }
+        for (int i = 0; i < songs.size(); i++) {
+            JSONObject song = songs.getJSONObject(i);
+            JSONArray artists = song.getJSONArray("ar");
+            if (artists == null) {
+                continue;
+            }
+            StringBuilder names = new StringBuilder();
+            for (int j = 0; j < artists.size(); j++) {
+                names.append(artists.getJSONObject(j).getString("name"));
+            }
+            for (int j = 1; j < words.length; j++) {
+                if (words[j].length() > 0 && names.indexOf(words[j]) >= 0) {
+                    return song;
+                }
+            }
+        }
+        return first;
+    }
+
     private Music getWYMusicByName(Music pick) {
         HttpResponse<String> response = null;
         Music music = null;
@@ -619,7 +650,7 @@ public class MusicServiceImpl implements MusicService {
                 }else{
                     cookie = NETEASE_COOKIE;
                 }
-                response = Unirest.post(jusicProperties.getMusicServeDomain() + "/search").queryString("limit",1).queryString("offset",0).queryString("keywords",pick.getName()).queryString("cookie",cookie)
+                response = Unirest.post(jusicProperties.getMusicServeDomain() + "/search").queryString("limit",10).queryString("offset",0).queryString("keywords",pick.getName()).queryString("cookie",cookie)
                         .asString();
 
                 if (response.getStatus() == 200) {
@@ -628,7 +659,7 @@ public class MusicServiceImpl implements MusicService {
                     if (jsonObject.get("code").equals(200)) {
                         JSONObject result = jsonObject.getJSONObject("result");
                         if(result.getInteger("songCount") > 0){
-                            JSONObject data = result.getJSONArray("songs").getJSONObject(0);
+                            JSONObject data = this.matchOriginSong(result.getJSONArray("songs"), pick.getName());
                             String id = data.getString("id");
                             music = getWYMusicById(id,pick.getQuality());
 //                            music.setId(id);
@@ -848,12 +879,17 @@ public class MusicServiceImpl implements MusicService {
                         // 优先走 QQ 官方取链（Node API /song/urls，依赖容器内有效的 QQ 会员 cookie）
                         String url = this.getQQMusicUrl(id);
                         if(url == null){
-                            Music temp = new Music();
-                            temp.setName(music.getName()+" "+music.getArtist());
-                            temp.setQuality(quality);
-                            temp = this.getWYMusicByName(music);
-                            if(temp != null){
-                                url = temp.getUrl();
+                            // QQ 取不到链接（一般是 cookie 没有会员态）时退到网易云同名版本。
+                            // 这里必须把整个对象都换成网易云的：只换 url 会出现「界面显示 QQ 原版、
+                            // 实际播放的却是网易云另一首」的表里不一。
+                            // 搜索词带上歌手名，否则 limit=1 的头条常常是翻唱。
+                            Music keyword = new Music();
+                            keyword.setName(music.getName()+" "+music.getArtist());
+                            keyword.setQuality(quality);
+                            Music wyMusic = this.getWYMusicByName(keyword);
+                            if(wyMusic != null){
+                                log.info("QQ 取链失败, 已改用网易云版本: {} - {}", wyMusic.getName(), wyMusic.getArtist());
+                                return wyMusic;
                             }
                         }
                         if(url == null){
