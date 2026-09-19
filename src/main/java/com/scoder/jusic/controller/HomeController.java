@@ -401,5 +401,19 @@ public class HomeController {
         return Response.success(jsonObject,"直播间弹幕信息");
     }
 
+    /**
+     * B 站设备指纹（buvid3）。
+     * 弹幕服务器按它决定往这条连接推多少消息：认证包里不带 buvid 时推送量会被大幅降级
+     * （实测同一房间同一时段，弹幕 48 条 vs 109 条、消息总量 85 条 vs 381 条）。
+     * 浏览器直连该接口会被跨域拦住，所以由后端代取。
+     */
+    @RequestMapping("/bili/buvid")
+    @ResponseBody
+    public Response buvid(HttpServletRequest accessor) {
+        HttpResponse<String> response = Unirest.get("https://api.bilibili.com/x/frontend/finger/spi").asString();
+        JSONObject jsonObject = JSONObject.parseObject(response.getBody());
+        return Response.success(jsonObject,"buvid 设备指纹");
+    }
+
 
 }
