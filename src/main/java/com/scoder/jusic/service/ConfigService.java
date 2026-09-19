@@ -36,6 +36,18 @@ public interface ConfigService {
 
     Float getVoteRate(String houseId);
 
+    /**
+     * B 站直播弹幕点歌的房间配置：直播间号、是否自动连接、弹幕切歌门槛
+     */
+    String getBiliRoomId(String houseId);
+    void setBiliRoomId(String roomId, String houseId);
+
+    Boolean getBiliAutoConnect(String houseId);
+    void setBiliAutoConnect(boolean autoConnect, String houseId);
+
+    Integer getBiliSwitchLimit(String houseId);
+    void setBiliSwitchLimit(Integer switchLimit, String houseId);
+
     void setQqMusicCookieToProperties();
     void setQqMusicCookie(String uin, String qqMusicCookie);
 }

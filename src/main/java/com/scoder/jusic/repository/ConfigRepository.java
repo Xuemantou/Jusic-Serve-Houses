@@ -159,6 +159,24 @@ public interface ConfigRepository {
     Boolean getRandomModel(String houseId);
     void setRandomModel(boolean randomModel,String houseId);
 
+    /**
+     * B 站直播间号（空 = 未配置）
+     */
+    String getBiliRoomId(String houseId);
+    void setBiliRoomId(String roomId, String houseId);
+
+    /**
+     * 打开房间时是否自动连接该直播间
+     */
+    Boolean getBiliAutoConnect(String houseId);
+    void setBiliAutoConnect(boolean autoConnect, String houseId);
+
+    /**
+     * 弹幕「切歌」需要多少个不同观众才发起投票
+     */
+    Integer getBiliSwitchLimit(String houseId);
+    void setBiliSwitchLimit(Integer switchLimit, String houseId);
+
     void setAdminPassword(String password, String houseId);
     void setRootPassword(String password, String houseId);
     void setQqMusicCookie(String uin, String qqMusicCookie);

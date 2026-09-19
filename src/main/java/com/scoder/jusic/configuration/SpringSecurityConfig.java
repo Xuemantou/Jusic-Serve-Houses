@@ -38,6 +38,9 @@ public class SpringSecurityConfig extends WebSecurityConfigurerAdapter {
         http.csrf().disable().authorizeRequests().antMatchers(HttpMethod.POST,"/house/add").permitAll()
                 .antMatchers(HttpMethod.POST,"/house/enter").permitAll()
                 .antMatchers(HttpMethod.GET,"/bili/**").permitAll()
+                // 弹幕点歌的房间配置与连接租约：写操作的鉴权由接口内的管理员密码校验负责
+                .antMatchers(HttpMethod.POST,"/bili/**").permitAll()
+                .antMatchers(HttpMethod.DELETE,"/bili/**").permitAll()
                 .antMatchers(HttpMethod.POST,"/house/get").permitAll()
                 .antMatchers(HttpMethod.POST,"/house/search").permitAll()
                 .antMatchers(HttpMethod.POST,"/house/getMiniCode").permitAll()

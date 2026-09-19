@@ -247,4 +247,36 @@ public class ConfigRepositoryImpl implements ConfigRepository {
     public void setRandomModel(boolean randomModel,String houseId) {
         this.put(redisKeys.getRandomModel(), randomModel,houseId);
     }
+
+    @Override
+    public String getBiliRoomId(String houseId) {
+        return (String) this.get(redisKeys.getBiliRoomId(), houseId);
+    }
+
+    @Override
+    public void setBiliRoomId(String roomId, String houseId) {
+        this.put(redisKeys.getBiliRoomId(), roomId, houseId);
+    }
+
+    @Override
+    public Boolean getBiliAutoConnect(String houseId) {
+        Object value = this.get(redisKeys.getBiliAutoConnect(), houseId);
+        return value == null ? Boolean.FALSE : (Boolean) value;
+    }
+
+    @Override
+    public void setBiliAutoConnect(boolean autoConnect, String houseId) {
+        this.put(redisKeys.getBiliAutoConnect(), autoConnect, houseId);
+    }
+
+    @Override
+    public Integer getBiliSwitchLimit(String houseId) {
+        Object value = this.get(redisKeys.getBiliSwitchLimit(), houseId);
+        return value == null ? 3 : (Integer) value;
+    }
+
+    @Override
+    public void setBiliSwitchLimit(Integer switchLimit, String houseId) {
+        this.put(redisKeys.getBiliSwitchLimit(), switchLimit, houseId);
+    }
 }

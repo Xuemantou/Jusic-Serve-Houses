@@ -254,6 +254,23 @@ public class JusicProperties {
          */
         private String voteSkipRate = "vote_skip_rate";
 
+        /**
+         * B 站直播弹幕点歌：直播间号（空 = 未配置），config 子键名
+         */
+        private String biliRoomId = "bili_room_id";
+        /**
+         * 是否在打开房间时自动连接该直播间，config 子键名
+         */
+        private String biliAutoConnect = "bili_auto_connect";
+        /**
+         * 弹幕「切歌」需要多少个不同观众才投票，config 子键名
+         */
+        private String biliSwitchLimit = "bili_switch_limit";
+        /**
+         * 弹幕连接的租约：同一房间同一时刻只允许一个浏览器在连，key 前缀
+         */
+        private String biliLease = "jusic_bili_lease";
+
         private final JusicEnvironment jusicEnvironment;
 
         public RedisKeys(JusicEnvironment jusicEnvironment) {
@@ -298,6 +315,14 @@ public class JusicProperties {
 
         public String getSkipSet() {
             return this.skipSet + "_" + jusicEnvironment.getServerPort()+"_";
+        }
+
+        /**
+         * 弹幕连接租约的完整 key：谁持有它，谁就是当前那条弹幕连接的主人。
+         * 用 setIfAbsent + TTL 做原子抢占和自动过期，不依赖任何用户身份。
+         */
+        public String getBiliLeaseKey(String houseId) {
+            return this.biliLease + "_" + jusicEnvironment.getServerPort() + "_" + houseId;
         }
     }
 

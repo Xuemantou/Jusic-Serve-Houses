@@ -57,6 +57,36 @@ public class ConfigServiceImpl implements ConfigService {
     }
 
     @Override
+    public String getBiliRoomId(String houseId) {
+        return configRepository.getBiliRoomId(houseId);
+    }
+
+    @Override
+    public void setBiliRoomId(String roomId, String houseId) {
+        configRepository.setBiliRoomId(roomId, houseId);
+    }
+
+    @Override
+    public Boolean getBiliAutoConnect(String houseId) {
+        return configRepository.getBiliAutoConnect(houseId);
+    }
+
+    @Override
+    public void setBiliAutoConnect(boolean autoConnect, String houseId) {
+        configRepository.setBiliAutoConnect(autoConnect, houseId);
+    }
+
+    @Override
+    public Integer getBiliSwitchLimit(String houseId) {
+        return configRepository.getBiliSwitchLimit(houseId);
+    }
+
+    @Override
+    public void setBiliSwitchLimit(Integer switchLimit, String houseId) {
+        configRepository.setBiliSwitchLimit(switchLimit, houseId);
+    }
+
+    @Override
     public Boolean getEnableSearch(String houseId) {
         return configRepository.getEnableSearch(houseId);
     }

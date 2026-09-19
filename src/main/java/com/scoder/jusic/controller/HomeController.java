@@ -7,6 +7,7 @@ import com.scoder.jusic.configuration.JusicProperties;
 import com.scoder.jusic.model.House;
 import com.scoder.jusic.model.RetainKey;
 import com.scoder.jusic.model.Token;
+import com.scoder.jusic.service.ConfigService;
 import com.scoder.jusic.util.IPUtils;
 import com.scoder.jusic.util.StringUtils;
 import com.scoder.jusic.util.UUIDUtils;
@@ -15,11 +16,14 @@ import kong.unirest.Unirest;
 import kong.unirest.UnirestException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import javax.servlet.http.HttpServletRequest;
@@ -31,6 +35,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author JumpAlang
@@ -44,6 +49,15 @@ public class HomeController {
     private HouseContainer houseContainer;
     @Autowired
     private JusicProperties jusicProperties;
+    @Autowired
+    private ConfigService configService;
+    @Autowired
+    private RedisTemplate redisTemplate;
+    @Autowired
+    private JusicProperties.RedisKeys redisKeys;
+
+    /** 弹幕连接租约的有效期（秒）：持有者必须在这个时间内续期，否则自动释放 */
+    private static final long BILI_LEASE_SECONDS = 45;
 
     public static Token TOKEN;
 
@@ -413,6 +427,99 @@ public class HomeController {
         HttpResponse<String> response = Unirest.get("https://api.bilibili.com/x/frontend/finger/spi").asString();
         JSONObject jsonObject = JSONObject.parseObject(response.getBody());
         return Response.success(jsonObject,"buvid 设备指纹");
+    }
+
+    /**
+     * 读取房间的弹幕点歌配置，附带当前租约持有者（前端用它显示"哪个窗口在连"）。
+     * 只读、不含敏感信息，和 /bili/room_init 一样公开。
+     */
+    @RequestMapping("/bili/room/{houseId}")
+    @ResponseBody
+    public Response biliRoom(@PathVariable String houseId, HttpServletRequest accessor) {
+        if (houseContainer.get(houseId) == null) {
+            return Response.failure((Object) null, "房间不存在");
+        }
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("roomId", configService.getBiliRoomId(houseId));
+        config.put("autoConnect", configService.getBiliAutoConnect(houseId));
+        config.put("switchLimit", configService.getBiliSwitchLimit(houseId));
+        config.put("holder", redisTemplate.opsForValue().get(redisKeys.getBiliLeaseKey(houseId)));
+        return Response.success(config, "直播间配置");
+    }
+
+    /**
+     * 保存房间的弹幕点歌配置。
+     *
+     * 站点没有用户身份体系（管理面板也只是密码鉴权），所以这里用房间管理员密码校验，
+     * 否则任何人拿到 houseId 就能改掉房间配置。
+     */
+    @RequestMapping(value = "/bili/room/{houseId}", method = RequestMethod.POST)
+    @ResponseBody
+    public Response saveBiliRoom(@PathVariable String houseId, @RequestBody JSONObject body) {
+        House house = houseContainer.get(houseId);
+        if (house == null) {
+            return Response.failure((Object) null, "房间不存在");
+        }
+        String password = body.getString("adminPwd");
+        if (password == null || !password.equals(house.getAdminPwd())) {
+            return Response.failure((Object) null, "管理员密码不正确");
+        }
+        String roomId = body.getString("roomId");
+        if (roomId != null && !roomId.trim().isEmpty() && !roomId.trim().matches("\\d+")) {
+            return Response.failure((Object) null, "直播间号只能是数字");
+        }
+        Integer switchLimit = body.getInteger("switchLimit");
+        configService.setBiliRoomId(roomId == null ? "" : roomId.trim(), houseId);
+        configService.setBiliAutoConnect(Boolean.TRUE.equals(body.getBoolean("autoConnect")), houseId);
+        configService.setBiliSwitchLimit(switchLimit == null || switchLimit < 0 ? 0 : switchLimit, houseId);
+        log.info("房间 {} 的弹幕点歌配置已更新: roomId={}, autoConnect={}, switchLimit={}",
+                houseId, roomId, body.getBoolean("autoConnect"), switchLimit);
+        return Response.success((Object) null, "已保存");
+    }
+
+    /**
+     * 抢占 / 续期弹幕连接租约。
+     *
+     * 「谁来连」不能用角色判断 —— 管理面板只是密码鉴权，没有真实用户身份。
+     * 改用租约：谁先 SET NX 成功谁持有，持有者定期续期；浏览器崩了就靠 TTL 自动过期，
+     * 别的窗口随即可以接管。这样同一房间任何时刻最多一条弹幕连接，
+     * 同一条弹幕不会被处理两次（重复点歌）。
+     */
+    @RequestMapping(value = "/bili/lease/{houseId}", method = RequestMethod.POST)
+    @ResponseBody
+    public Response acquireBiliLease(@PathVariable String houseId, @RequestBody JSONObject body) {
+        if (houseContainer.get(houseId) == null) {
+            return Response.failure((Object) null, "房间不存在");
+        }
+        String holderId = body.getString("holderId");
+        if (holderId == null || holderId.isEmpty()) {
+            return Response.failure((Object) null, "缺少 holderId");
+        }
+        String key = redisKeys.getBiliLeaseKey(houseId);
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(key, holderId, BILI_LEASE_SECONDS, TimeUnit.SECONDS);
+        if (Boolean.TRUE.equals(acquired)) {
+            return Response.success(holderId, "已获得连接权");
+        }
+        String current = (String) redisTemplate.opsForValue().get(key);
+        if (holderId.equals(current)) {
+            redisTemplate.expire(key, BILI_LEASE_SECONDS, TimeUnit.SECONDS);
+            return Response.success(holderId, "续期成功");
+        }
+        return Response.failure(current, "已有其他窗口在连接该直播间");
+    }
+
+    /** 主动释放租约（断开弹幕连接时调用），让别的窗口能立刻接管 */
+    @RequestMapping(value = "/bili/lease/{houseId}", method = RequestMethod.DELETE)
+    @ResponseBody
+    public Response releaseBiliLease(@PathVariable String houseId,
+                                     @RequestParam(value = "holderId", required = false) String holderId,
+                                     HttpServletRequest accessor) {
+        String key = redisKeys.getBiliLeaseKey(houseId);
+        String current = (String) redisTemplate.opsForValue().get(key);
+        if (holderId != null && holderId.equals(current)) {
+            redisTemplate.delete(key);
+        }
+        return Response.success((Object) null, "已释放");
     }
 
 
