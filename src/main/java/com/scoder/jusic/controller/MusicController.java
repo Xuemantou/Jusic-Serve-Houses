@@ -125,6 +125,11 @@ public class MusicController {
             musicService.toPick(sessionId, pick,houseId,pick.getSource());
             LinkedList<Music> pickList = musicService.getPickList(houseId);
             sessionService.send(MessageType.NOTICE, Response.success((Object) null, "点歌成功"),houseId);
+            // 兜底换源（QQ 取链失败退到网易云）时明确说一声：
+            // 否则用户看到「点歌qq」点出来的却是网易云版本，只会以为是 bug
+            if (music.getSource() != null && !music.getSource().equals(pick.getSource())) {
+                sessionService.send(MessageType.NOTICE, Response.failure((Object) null, "QQ 取链失败（多为 QQ 会员 cookie 失效），已改用网易云版本"),houseId);
+            }
             log.info("点歌成功");
 //            if(configService.getGoodModel() != null && configService.getGoodModel()){
 //                sessionService.send(MessageType.PICK, Response.success(pickList, "goodlist"));
